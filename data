@@ -1,0 +1,15 @@
+#
+# Data file for backup program
+# List each file or directory to back up on a 
+# separate line
+#
+/var/log
+/etc
+/root
+/usr/local/bin/backup
+/var/roundcube
+/var/vmail
+/var/www/ca
+/var/www/dyndns
+/var/www/roundcubemail
+/var/www/postfixadmin

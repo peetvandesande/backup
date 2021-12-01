@@ -1,0 +1,43 @@
+<?php
+$backup_conf['dst_dir'] = '/var/backups/panka';
+$backup_conf['tmp_dir'] = '/var/backups/tmp';
+$backup_conf['hostname'] = 'hostname';
+$backup_conf['luser'] = 'backup';
+$backup_conf['lgroup'] = 'backup';
+$backup_conf['store_remote'] = true;
+$backup_conf['rsync_options'] = "-a -e ssh --delete";
+$backup_conf['retain'] = 1;
+$backup_conf['store_home'] = true;
+$backup_conf['iptrackerdir'] = '/var/cache/phptracker';
+
+$backup_mysql['hostname'] = 'localhost';
+$backup_mysql['username'] = 'backup';
+$backup_mysql['password'] = 'changeme';
+$backup_mysql['options'] = '--add-drop-database';
+$backup_mysql['databases'] = array (
+  'mysql',
+);
+
+$backup_data['files'] = '/etc/backup/data';
+$backup_data['files_skip'] = '/etc/backup/skip';
+$backup_data['archiver'] = 'tar';
+$backup_data['options'] = 'cjpPf';
+$backup_data['archive_extension'] = '.tar.bz2';
+
+$remote_host['address'] = 'backup.server.com';
+$remote_host['method'] = 'ftp';
+$remote_host['username'] = 'user';
+$remote_host['password'] = 'pass';
+$remote_host['location'] = 'backup/';
+$remote_host['rsync_options'] = "-a -e ssh --delete";
+$remote_host['retain'] = 1;
+
+$home_host['address'] = '';
+$home_host['method'] = 'rsync';
+$home_host['username'] = 'backup';
+$home_host['password'] = '';
+$home_host['location'] = 'backup/';
+$home_host['rsync_options'] = "-a -e ssh --delete";
+$home_host['retain'] = 1;
+
+?>
