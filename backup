@@ -1,0 +1,414 @@
+#!/usr/bin/php
+<?php
+// error_reporting(E_ERROR);
+define('DEBUG', false);
+$config_dir = '/etc/backup';
+$config_file = $config_dir . '/backup.conf';
+$files = array(); // Array of files to back up
+$archive = ''; // Filename of backup
+
+// Record start time
+echo "Starting $argv[0] at " . timestamp() . "\n";
+echo "Including $config_file\n";
+
+if (is_readable($config_file)) {
+  include_once($config_file);
+	$files[] = $backup_conf['tmp_dir'];
+} else {
+  die('Can\'t read configuration file');
+}
+
+init($backup_conf);
+main();
+housekeeping();
+
+echo "Ending $argv[0] at " . timestamp() . "\n";
+
+function init(&$conf) {
+	foreach( array($conf['dst_dir'], $conf['tmp_dir']) as $dir ) {
+	  // Verify directory exists
+		if ( is_dir($dir) ) {
+			// Verify directory is writable
+		  if ( opendir($dir) ) {
+		    // write dummy file to verify we've got write access
+		    $filename = "$dir/" . timestamp();
+		    if ( ! fopen($filename, 'w') ) {
+		      die ('Can\'t write to directory ' . $dir);
+		    } else {
+					// All ok, remove file again
+		      unlink($filename);
+		    }
+		  } else {
+		    die ('Can\'t open directory ' . $dir);
+		  }
+		} elseif ( mkdir($dir, 0777, true) ) {
+			echo "Created directory $dir\n";
+	  }
+	}
+}
+
+function main() {
+  global $backup_mysql, $backup_conf;
+#	package_info();
+
+	if (isset($backup_conf['retain'])) {
+		remove_old();
+	}
+
+  if ( isset($backup_mysql['databases']) ) {
+    backup_mysql();
+  }
+
+  backup_data();
+
+  if ( $backup_conf['store_remote'] ) {
+     store_remote();
+  }
+}
+
+function package_info() {
+	$package_cmd = "dpkg --get-selections | awk '{print $1}' | tr '\012' ' '";
+	$md5_cmd = "dpkg --get-selections | awk '{print $1}' | tr '\012' ' ' | md5sum | awk '{print $1}'";
+	
+	echo "List of installed packages:\n";
+  exec ($package_cmd, $output, $retval);
+	echo "$output[0]\n";
+  unset($output);
+	echo "md5sum of list of installed packages: ";
+  exec ($md5_cmd, $output, $retval);
+	echo "$output[0]\n";
+}
+
+function housekeeping() {
+  global $backup_conf, $files;
+
+	delete_recursive($backup_conf['tmp_dir'] . '/');
+}
+
+function backup_mysql() {
+  global $backup_mysql, $backup_conf;
+
+  foreach( $backup_mysql['databases'] as $db ) {
+    if (isset($db)) {
+      echo "Starting backup of mysql database '$db'\n";
+      $filename = $backup_conf['tmp_dir'] . "/" . "$db-" . timestamp("Ymd") . ".sql";
+      $cmd  = "mysqldump --host=";
+      $cmd .= $backup_mysql['hostname'];
+      $cmd .= " --user=";
+      $cmd .= $backup_mysql['username'];
+      $cmd .= " --password=";
+      $cmd .= $backup_mysql['password'];
+      $cmd .= " ";
+      $cmd .= $backup_mysql['options'];
+      $cmd .= " --databases $db";
+      $cmd .= " > $filename";
+
+      $foo = exec("$cmd 2>1", $output, $retval);
+
+      if ( $retval == 0 ) {
+        $chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $filename";
+        exec($chown_cmd, $output, $retval);
+        echo "Finished backup of mysql database '$db'\n";
+      } else {
+        echo "Error $retval:\n";
+				foreach ($output as $line) {
+        	echo "$line\n";
+				}
+        unlink($filename);
+        // exit($retval);
+      }
+    }
+  }
+}
+
+function copy_recursive ($source_dir = '', $dest_dir = '') {
+  $error = 0;
+	$file_list = array();
+
+	if ( $source_dir == '' ) {
+		echo "ERROR: copy_recursive: \$source_dir is empty\n";
+		$error = 1;
+	} elseif ( $dest_dir == '' ) {
+		echo "ERROR: copy_recursive: \$dest_dir is empty\n";
+		$error = 2;
+	} elseif ( ! is_readable($source_dir) ) {
+		echo "ERROR: copy_recursive: \$source_dir is not readable\n";
+		$error = 3;
+	} elseif ( ! is_writable($dest_dir) ) {
+		echo "ERROR: copy_recursive: \$dest_dir is not writable\n";
+		$error = 4;
+	}
+
+	if ( $error === 0 ) {
+		$contents = scandir($source_dir);
+		for ( $i = 2; $i < count($contents); $i++ ) {
+			if ( is_dir($source_dir . '/' . $contents[$i]) ) {
+				mkdir ($dest_dir . '/' . $contents[$i]);
+				$copied_files = copy_recursive($source_dir . '/' . $contents[$i], $dest_dir . '/' . $contents[$i]);
+				foreach ($copied_files as $copied_file) {
+					$file_list[] = $copied_file;
+				}
+			} else {
+				(DEBUG) && print "DEBUG: " . date('H:i:s') . " copy_recursive: copying $source_dir/" . $contents[$i] . " to $dest_dir\n";
+				copy($source_dir . '/' . $contents[$i], $dest_dir . '/' . $contents[$i]);
+				$file_list[] = $dest_dir . '/' . $contents[$i];
+			}
+		}
+	} else {
+		(DEBUG) && print "DEBUG: " . date ('H:i:s') . " copy_recursive: not copying anything due to error $error\n";
+	}
+
+	(DEBUG) && print "DEBUG: " . date('H:i:s') . " copy_recursive: \$file_list contains " . count($file_list) . " items\n";
+	return $file_list;
+}
+
+function delete_recursive ($dir = '') {
+	$files = array_diff(scandir($dir), array('.','..'));
+	foreach ($files as $file) {
+		(is_dir("$dir/$file")) ? delete_recursive("$dir/$file") : unlink("$dir/$file");
+	}
+	return rmdir($dir);
+}
+
+function remove_old() {
+  global $backup_conf;
+
+	// List to-be deleted files
+	$cmd = "find " . $backup_conf['dst_dir'] . " -mtime +" . ( $backup_conf['retain'] - 1);
+	(DEBUG) && print "DEBUG: Command = $cmd\n";
+
+  exec ($cmd, $output, $retval);
+	if ($retval == 0) {
+		echo "Files to be deleted:\n";
+		foreach ($output as $key => $value) {
+			$md5_cmd = "md5sum $value | awk '{print $1}'";
+			$du_cmd = "du -b $value | awk '{print $1}'";
+			exec ($md5_cmd, $md5, $retval);
+			exec ($du_cmd, $du, $retval);
+		  echo "$key: $value ($du[0] bytes, md5sum: $md5[0])\n";
+		}
+	}
+	unset($output);
+
+	$cmd = "find " . $backup_conf['dst_dir'] . " -mtime +" . $backup_conf['retain'] . " -delete";
+	(DEBUG) && print "DEBUG: Command = $cmd\n";
+  exec ($cmd, $output, $retval);
+  if ( $retval == 0 ) {
+    echo "Finished cleaning up " . $backup_conf['dst_dir'] . " \n";
+  } else {
+    echo "Error $retval:\n";
+		foreach ($output as $line) {
+     	echo "$line\n";
+		}
+  }
+	
+	return 0;
+}
+
+function backup_data() {
+  global $archive, $backup_data, $backup_conf, $files;
+	$search= '/var/log';
+	$exclusions = array();
+
+//  foreach( $backup_data['files'] as $data_file ) {
+//	  (DEBUG) && print "DEBUG: Processing $data_file\n";
+//    if ( is_readable($data_file) ) {
+//      $handle = fopen($data_file, 'r');
+//      $fsize = filesize($data_file);
+//      while (( $buffer = fgets($handle, $fsize)) !== false ) {
+//        $afile = trim($buffer);
+//        if ((strpos($afile, '#') === false) and (strlen($afile) > 0)) {
+//    			if ( strpos($afile, $search) === 0 ) {
+//						(DEBUG) && print "DEBUG: " . date('H:i:s') . " backup_data: copying from $afile\n"; 
+//						echo "Copying $afile to " . $backup_conf['tmp_dir'] . " and adding it to list of files to backup\n";
+//						$copied_files = copy_recursive($afile, $backup_conf['tmp_dir']);
+//					} else {
+//	          echo "Adding $afile to list of files to backup\n";
+//  	        $files[] = $afile;
+//					}
+//        }
+//      }
+//      fclose($handle);
+//    }
+//  }
+
+	// Adding files and folders to list of data to backup
+	if ( is_readable($backup_data['files']) ) {
+		$handle = fopen($backup_data['files'], 'r');
+		$fsize = filesize($backup_data['files']);
+		while (( $buffer = fgets($handle, $fsize)) !== false ) {
+			$afile = trim($buffer);
+			// Verify the line is not commented out
+			if ((strpos($afile, '#') !== 0) and (strlen($afile) > 0)) {
+				// Copy certain folders to tmp to prevent files from changing during tar
+				if ( strpos($afile, $search) === 0 ) {
+					// Open files, copy to tmp dir for tar
+					(DEBUG) && print "DEBUG: " . date('H:i:s') . " backup_data: copying from $afile\n"; 
+					echo "Copying $afile to " . $backup_conf['tmp_dir'] . " and adding it to list of files to backup\n";
+					$copied_files = copy_recursive($afile, $backup_conf['tmp_dir']);
+				} elseif (is_readable($afile)) {
+					// Adding file/folder to list of backup
+          echo "Adding $afile to list of files to backup\n";
+  	        $files[] = $afile;
+				} else {
+					(DEBUG) && print "DEBUG: Not adding $afile as it's not readable\n";
+				}
+			}
+		}
+		fclose($handle);
+	}
+
+	// Removing exclusions from list of data to backup
+	if ( is_readable($backup_data['files_skip']) ) {
+		$handle = fopen($backup_data['files_skip'], 'r');
+		$fsize = filesize($backup_data['files_skip']);
+		while (( $buffer = fgets($handle, $fsize)) !== false ) {
+			$exclusion = trim($buffer);
+			// Verify the line is not commented out
+			if ((strpos($exclusion, '#') !== 0) and (strlen($exclusion) > 0)) {
+//				if (is_readable($exclusion)) {
+//					// Adding file/folder to list of exclusions
+          echo "Adding $exclusion to list of files to exclude\n";
+  	        $exclusions[] = $exclusion;
+//				} else {
+//					(DEBUG) && print "DEBUG: Not adding $exclusion as it's not readable\n";
+//				}
+			}
+		}
+		fclose($handle);
+	}
+
+  $archive = $backup_conf['dst_dir'] . '/' . $backup_conf['hostname'] . '-' . timestamp("Ymd") . $backup_data['archive_extension'];
+  echo "Creating archive $archive\n";
+
+  $cmd  = $backup_data['archiver'];
+	$cmd .= ' ' . $backup_data['options'];
+	$cmd .= ' ' . $archive;
+
+	if (count($exclusions) > 0) {
+	  foreach( $exclusions as $exclusion ) {
+			$cmd .= " --exclude=$exclusion";
+		}
+	}
+
+  foreach( $files as $file ) {
+    $cmd .= " $file";
+  }
+
+	(DEBUG) && print "DEBUG: " . date('H:i:s') . " \$cmd = $cmd\n";
+
+  exec ($cmd, $output, $retval);
+  if ( $retval <> 0 ) {
+    echo "Error $retval:\n";
+		foreach ($output as $line) {
+     	echo "$line\n";
+		}
+  }
+	unset ($output);
+
+	$md5_cmd = "md5sum $archive | awk '{print $1}'";
+	$du_cmd = "du -b $archive | awk '{print $1}'";
+	exec ($md5_cmd, $md5, $retval);
+	exec ($du_cmd, $du, $retval);
+  echo "Finished creating $archive; size: $du[0]; md5sum: $md5[0]\n";
+
+  $chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $archive";
+  exec ($chown_cmd, $output, $retval);
+  $chmod_cmd = "chmod 640 $archive";
+  exec ($chmod_cmd, $output, $retval);
+}
+
+function store_remote() {
+  global $remote_host, $backup_conf;
+
+  switch ($remote_host['method']) {
+    case 'scp':
+      store_scp();
+      break;
+    case 'ftp':
+      store_ftp();
+      break;
+		case 'rsync':
+			store_rsync();
+			break;
+  }
+}
+
+function store_scp() {
+  global $archive, $remote_host, $backup_conf;
+  
+  echo "Storing archive to " . $remote_host['address'] . " at " . $remote_host['location'] . " using " . $remote_host['method'] . "\n";
+  
+  #$cmd  = "su -l {$backup_conf['luser']} -c '";
+  $cmd  = "sudo -u {$backup_conf['luser']} ";
+  $cmd .= "scp $archive ";
+  $cmd .= $remote_host['username'] . '@' . $remote_host['address'] . ':' . $remote_host['location'];
+  #$cmd .= "'";
+ 
+	(DEBUG) && print "DEBUG: Command = $cmd\n";
+  exec ($cmd, $output, $retval);
+  if ( $retval == 0 ) {
+    echo "Finished storing $archive\n";
+  } else {
+    echo "Error $retval:\n";
+		foreach ($output as $line) {
+     	echo "$line\n";
+		}
+  }
+}
+
+function store_rsync() {
+  global $archive, $remote_host, $backup_conf;
+
+  echo "Storing archive to " . $remote_host['address'] . " at " . $remote_host['location'] . " using " . $remote_host['method'] . "\n";
+  
+	#$cmd  = "su -l " . $backup_conf['luser'] . " -s /bin/bash -c '";
+  $cmd  = "sudo -u {$backup_conf['luser']} ";
+	$cmd .= "rsync " . $backup_conf['rsync_options'] . " ";
+	$cmd .= $backup_conf['dst_dir'] . "/* ";
+  $cmd .= $remote_host['username'] . '@' . $remote_host['address'] . ':' . $remote_host['location'];
+	#$cmd .= "'";
+
+	(DEBUG) && print "DEBUG: Command = $cmd\n";
+  exec ($cmd, $output, $retval);
+  if ( $retval == 0 ) {
+    echo "Finished storing $archive\n";
+  } else {
+    echo "Error $retval:\n";
+		foreach ($output as $line) {
+     	echo "$line\n";
+		}
+  }
+}
+
+function store_ftp() {
+	global $archive, $remote_host, $backup_conf, $backup_data;
+	$old_archive = $remote_host['location'] . $backup_conf['hostname'] . '-' . timestamp("Ymd", strtotime('-' . $backup_conf['retain'] . ' days')) . $backup_data['archive_extension'];
+	$remote_file = $remote_host['location'] . basename($archive);
+
+	echo "Storing archive to " . $remote_host['address'] . " at " . $remote_host['location'] . " using " . $remote_host['method'] . "\n";
+
+	$ftp_conn = ftp_connect($remote_host['address']);
+	$login = ftp_login($ftp_conn, $remote_host['username'], $remote_host['password']);
+
+	if (ftp_delete($ftp_conn, $old_archive)) {
+		echo "Deleted $old_archive from FTP server " . $remote_host['address'] . "\n";
+	} else {
+		echo "Unable to delete $old_archive from FTP server " . $remote_host['address'] . "\n";
+	}
+
+	if (ftp_put($ftp_conn, $remote_file, $archive, FTP_BINARY)) {
+		echo "Finished storing $archive\n";
+	} else {
+		echo "Error storing to FTP\n";
+	}
+}
+
+function timestamp($format = "Ymd-His", $time = 0) {
+	if ($time <> 0) {
+		return date($format, $time);
+	} else {
+		return date($format);
+	}
+}
+?>
