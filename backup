@@ -51,7 +51,8 @@ function init(&$conf)
 function main()
 {
 	global $backup_mysql, $backup_conf;
-	# package_info();
+	package_info();
+	mysql_db_size();
 
 	if (isset($backup_conf["retain"])) {
 		remove_old();
@@ -70,17 +71,30 @@ function main()
 
 function package_info()
 {
-	$package_cmd = "dpkg --get-selections | awk '{print $1}' | tr '\012' ' '";
-	$md5_cmd =
-		"dpkg --get-selections | awk '{print $1}' | tr '\012' ' ' | md5sum | awk '{print $1}'";
+	$packages_cmd     = "dpkg --get-selections | cut -f1 ";
+	$single_line_cmd  = sprintf("%s | tr '\\012' ' '", $packages_cmd);
+	$md5_cmd          = sprintf("%s | md5sum | cut -f1 -d ' '", $single_line_cmd);
+	$num_packages_cmd = sprintf("%s | wc -l", $packages_cmd);
+	if (DEBUG) {
+	       	printf("DEBUG: \$packages_cmd: %s\n", $packages_cmd);
+		printf("DEBUG: \$single_line_cmd: %s\n", $single_line_cmd);
+		printf("DEBUG: \$md5_cmd: %s\n", $md5_cmd);
+		printf("DEBUG: \$num_packages_cmd: %s\n", $num_packages_cmd);
+	}
 
-	echo "List of installed packages:\n";
-	exec($package_cmd, $output, $retval);
-	echo "$output[0]\n";
+	exec($num_packages_cmd, $output, $retval);
+	echo sprintf("Number of packages installed: %d\n", $output[0]);
 	unset($output);
+
 	echo "md5sum of list of installed packages: ";
 	exec($md5_cmd, $output, $retval);
 	echo "$output[0]\n";
+	unset($output);
+
+	echo "List of installed packages:\n";
+	exec($single_line_cmd, $output, $retval);
+	echo "$output[0]\n";
+	unset($output);
 }
 
 function housekeeping()
@@ -88,6 +102,35 @@ function housekeeping()
 	global $backup_conf, $files;
 
 	delete_recursive($backup_conf["tmp_dir"] . "/");
+}
+
+function mysql_db_size()
+{
+	global $backup_mysql, $backup_conf;
+
+	$lbl_db = "Database Name";
+	$lbl_size_bytes = "Size in Bytes";
+	$lbl_size_mib = "Size in MiB";
+	$query = sprintf("SELECT
+  table_schema '%s',
+  SUM(data_length + index_length) '%s',
+  ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) '%s'
+FROM information_schema.tables
+GROUP BY table_schema;", $lbl_db, $lbl_size_bytes, $lbl_size_mib);
+
+	$conn = new mysqli($backup_mysql["hostname"], $backup_mysql["username"], $backup_mysql["password"]);
+	if ($conn->connect_error) {
+		die("MySQLi connection failed: " . $conn->connect_error);
+	} else {
+		$result = $conn->query($query);
+		echo sprintf("\n%1$- 30s | %2$ 15s | %3$ 15s\n", $lbl_db, $lbl_size_bytes, $lbl_size_mib);
+		echo sprintf("%1$'-30s-+-%1$'-15s-+-%1$'-15s\n", "-");
+		while($row = $result->fetch_assoc()) {
+			echo sprintf("%1$- 30s | %2$ 15d | %3$ 15.2f\n", $row[$lbl_db], $row[$lbl_size_bytes], $row[$lbl_size_mib]);
+		}
+		$conn->close();
+		echo "\n";
+	}
 }
 
 function backup_mysql()
@@ -114,7 +157,7 @@ function backup_mysql()
 			$cmd .= " --databases $db";
 			$cmd .= " > $filename";
 
-			$foo = exec("$cmd 2>1", $output, $retval);
+			exec("$cmd 2>1", $output, $retval);
 
 			if ($retval == 0) {
 				$chown_cmd = "chown {$backup_conf["luser"]}:{$backup_conf["lgroup"]} $filename";
