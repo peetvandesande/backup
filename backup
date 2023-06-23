@@ -104,6 +104,25 @@ function housekeeping()
 	delete_recursive($backup_conf["tmp_dir"] . "/");
 }
 
+function encrypt()
+{
+	global $archive, $backup_conf;
+
+	$cmd = sprintf("gpg --encrypt -r %s --output %s.gpg %s && rm %s", $backup_conf['pgp_recipient'], $archive, $archive, $archive);
+	#$cmd = sprintf("gpg --encrypt -r %1$s --output %2$s.gpg %2$s && rm %2$s", $backup_conf['pgp_recipient'], $archive);
+	(DEBUG) && printf("DEBUG: \$cmd: %s\n", $cmd);
+	exec($cmd, $output, $retval);
+	if ($retval == 0) {
+		echo sprintf("Archive encrypted for: %s\n", $backup_conf['pgp_recipient']);
+		$archive = sprintf("%s.gpg", $archive);
+	} else {
+		echo "Error $retval:\n";
+		foreach ($output as $line) {
+			echo "$line\n";
+		}
+	}
+}
+
 function mysql_db_size()
 {
 	global $backup_mysql, $backup_conf;
@@ -379,8 +398,13 @@ function backup_data()
 		foreach ($output as $line) {
 			echo "$line\n";
 		}
+		die();
 	}
 	unset($output);
+
+	if ($backup_conf["pgp_encrypt"]) {
+		encrypt();
+	}
 
 	$md5_cmd = "md5sum $archive | awk '{print $1}'";
 	$du_cmd = "du -b $archive | awk '{print $1}'";
