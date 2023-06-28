@@ -518,7 +518,7 @@ function store_ftp()
 		$backup_data["archive_extension"];
 //	if ($backup_conf["pgp_encrypt"]) {
 	($backup_conf['pgp_encrypt']) && $old_archive = sprintf("%s.gpg", $old_archive);
-	debug(sprintf("\$old_archive: %s", $old_archive);
+	debug(sprintf("\$old_archive: %s", $old_archive));
 	$remote_file = $remote_host["location"] . basename($archive);
 
 	echo "Storing archive to " .
