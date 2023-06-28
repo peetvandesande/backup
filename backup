@@ -8,8 +8,8 @@ $files = []; // Array of files to back up
 $archive = ""; // Filename of backup
 
 // Record start time
-echo "Starting $argv[0] at " . timestamp() . "\n";
-echo "Including $config_file\n";
+inform("Starting $argv[0] at " . timestamp());
+debug("Including $config_file");
 
 if (is_readable($config_file)) {
 	include_once $config_file;
@@ -18,15 +18,16 @@ if (is_readable($config_file)) {
 	die('Can\'t read configuration file');
 }
 
-init($backup_conf);
+init();
 main();
 housekeeping();
 
-echo "Ending $argv[0] at " . timestamp() . "\n";
+inform("Ending $argv[0] at " . timestamp());
 
-function init(&$conf)
+function init()
 {
-	foreach ([$conf["dst_dir"], $conf["tmp_dir"]] as $dir) {
+	global $backup_conf;
+	foreach ([$backup_conf["dst_dir"], $backup_conf["tmp_dir"]] as $dir) {
 		// Verify directory exists
 		if (is_dir($dir)) {
     		// Verify directory is writable
@@ -43,7 +44,7 @@ function init(&$conf)
 				die('Can\'t open directory ' . $dir);
 			}
 		} elseif (mkdir($dir, 0777, true)) {
-			echo "Created directory $dir\n";
+			debug("Created directory $dir");
 		}
 	}
 }
@@ -75,15 +76,19 @@ function package_info()
 	$single_line_cmd  = sprintf("%s | tr '\\012' ' '", $packages_cmd);
 	$md5_cmd          = sprintf("%s | md5sum | cut -f1 -d ' '", $single_line_cmd);
 	$num_packages_cmd = sprintf("%s | wc -l", $packages_cmd);
-	if (DEBUG) {
-	       	printf("DEBUG: \$packages_cmd: %s\n", $packages_cmd);
-		printf("DEBUG: \$single_line_cmd: %s\n", $single_line_cmd);
-		printf("DEBUG: \$md5_cmd: %s\n", $md5_cmd);
-		printf("DEBUG: \$num_packages_cmd: %s\n", $num_packages_cmd);
-	}
+	debug(sprintf("\$packages_cmd: %s", $packages_cmd));
+	debug(sprintf("\$single_line_cmd: %s", $single_line_cmd));
+	debug(sprintf("\$md5_cmd: %s", $md5_cmd));
+	debug(sprintf("\$num_packages_cmd: %s", $num_packages_cmd));
+#	if (DEBUG) {
+#	       	printf("DEBUG: \$packages_cmd: %s\n", $packages_cmd);
+#		printf("DEBUG: \$single_line_cmd: %s\n", $single_line_cmd);
+#		printf("DEBUG: \$md5_cmd: %s\n", $md5_cmd);
+#		printf("DEBUG: \$num_packages_cmd: %s\n", $num_packages_cmd);
+#	}
 
 	exec($num_packages_cmd, $output, $retval);
-	echo sprintf("Number of packages installed: %d\n", $output[0]);
+	inform(sprintf("Number of packages installed: %d", $output[0]));
 	unset($output);
 
 	echo "md5sum of list of installed packages: ";
@@ -456,7 +461,7 @@ function store_scp()
 		":" .
 		$remote_host["location"];
 
-	DEBUG && (print "DEBUG: Command = $cmd\n");
+	debug("Command = $cmd");
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
 		echo "Finished storing $archive\n";
@@ -490,7 +495,7 @@ function store_rsync()
 		":" .
 		$remote_host["location"];
 
-	DEBUG && (print "DEBUG: Command = $cmd\n");
+	debug("Command = $cmd");
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
 		echo "Finished storing $archive\n";
@@ -511,6 +516,9 @@ function store_ftp()
 		"-" .
 		timestamp("Ymd", strtotime("-" . $backup_conf["retain"] . " days")) .
 		$backup_data["archive_extension"];
+//	if ($backup_conf["pgp_encrypt"]) {
+	($backup_conf['pgp_encrypt']) && $old_archive = sprintf("%s.gpg", $old_archive);
+	debug(sprintf("\$old_archive: %s", $old_archive);
 	$remote_file = $remote_host["location"] . basename($archive);
 
 	echo "Storing archive to " .
@@ -552,6 +560,18 @@ function timestamp($format = "Ymd-His", $time = 0)
 	} else {
 		return date($format);
 	}
+}
+
+function inform($msg)
+{
+	$output = sprintf("%s\n", $msg);
+	echo $output;
+}
+
+function debug($msg)
+{
+	(DEBUG) ? $output = sprintf("DEBUG: %s\n", $msg) : $output = "";
+	print $output;
 }
 
 ?>
