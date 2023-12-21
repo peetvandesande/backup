@@ -6,6 +6,10 @@ install :
 	cp backup /usr/local/bin
 	chmod +x /usr/local/bin/backup
 
+.PHONY = update
+update :
+	cp backup /usr/local/bin
+
 .PHONY = clean
 clean :
 	rm -rf /etc/backup
