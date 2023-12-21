@@ -467,7 +467,7 @@ function store_rsync()
 
 	$cmd = "sudo -u {$backup_conf["luser"]} ";
 	$cmd .= "rsync " . $backup_conf["rsync_options"] . " ";
-	$cmd .= $backup_conf["dst_dir"] . "/* ";
+	$cmd .= $backup_conf["dst_dir"] . "/ ";
 	$cmd .=
 		$remote_host["username"] .
 		"@" .
