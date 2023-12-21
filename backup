@@ -80,25 +80,19 @@ function package_info()
 	debug(sprintf("\$single_line_cmd: %s", $single_line_cmd));
 	debug(sprintf("\$md5_cmd: %s", $md5_cmd));
 	debug(sprintf("\$num_packages_cmd: %s", $num_packages_cmd));
-#	if (DEBUG) {
-#	       	printf("DEBUG: \$packages_cmd: %s\n", $packages_cmd);
-#		printf("DEBUG: \$single_line_cmd: %s\n", $single_line_cmd);
-#		printf("DEBUG: \$md5_cmd: %s\n", $md5_cmd);
-#		printf("DEBUG: \$num_packages_cmd: %s\n", $num_packages_cmd);
-#	}
 
 	exec($num_packages_cmd, $output, $retval);
 	inform(sprintf("Number of packages installed: %d", $output[0]));
 	unset($output);
 
-	echo "md5sum of list of installed packages: ";
+	inform("md5sum of list of installed packages: ", false);
 	exec($md5_cmd, $output, $retval);
-	echo "$output[0]\n";
+	inform("$output[0]");
 	unset($output);
 
-	echo "List of installed packages:\n";
+	inform("List of installed packages:");
 	exec($single_line_cmd, $output, $retval);
-	echo "$output[0]\n";
+	inform("$output[0]");
 	unset($output);
 }
 
@@ -427,6 +421,8 @@ function store_remote()
 {
 	global $remote_host, $backup_conf;
 
+	echo sprintf("Storing archinve to %s at %s using %s\n", $remote_host['address'], $remote_host['location'], $remote_host['method']);
+
 	switch ($remote_host["method"]) {
 		case "scp":
 			store_scp();
@@ -444,15 +440,7 @@ function store_scp()
 {
 	global $archive, $remote_host, $backup_conf;
 
-	echo "Storing archive to " .
-		$remote_host["address"] .
-		" at " .
-		$remote_host["location"] .
-		" using " .
-		$remote_host["method"] .
-		"\n";
-
-	$cmd = "sudo -u {$backup_conf["luser"]} ";
+		$cmd = "sudo -u {$backup_conf["luser"]} ";
 	$cmd .= "scp $archive ";
 	$cmd .=
 		$remote_host["username"] .
@@ -476,14 +464,6 @@ function store_scp()
 function store_rsync()
 {
 	global $archive, $remote_host, $backup_conf;
-
-	echo "Storing archive to " .
-		$remote_host["address"] .
-		" at " .
-		$remote_host["location"] .
-		" using " .
-		$remote_host["method"] .
-		"\n";
 
 	$cmd = "sudo -u {$backup_conf["luser"]} ";
 	$cmd .= "rsync " . $backup_conf["rsync_options"] . " ";
@@ -521,14 +501,6 @@ function store_ftp()
 	debug(sprintf("\$old_archive: %s", $old_archive));
 	$remote_file = $remote_host["location"] . basename($archive);
 
-	echo "Storing archive to " .
-		$remote_host["address"] .
-		" at " .
-		$remote_host["location"] .
-		" using " .
-		$remote_host["method"] .
-		"\n";
-
 	$ftp_conn = ftp_connect($remote_host["address"]);
 	$login = ftp_login(
 		$ftp_conn,
@@ -547,9 +519,9 @@ function store_ftp()
 	}
 
 	if (ftp_put($ftp_conn, $remote_file, $archive, FTP_BINARY)) {
-		echo "Finished storing $archive\n";
+		inform("Finished storing $archive");
 	} else {
-		echo "Error storing to FTP\n";
+		inform("Error storing to FTP");
 	}
 }
 
@@ -562,9 +534,9 @@ function timestamp($format = "Ymd-His", $time = 0)
 	}
 }
 
-function inform($msg)
+function inform($msg, $newline = false)
 {
-	$output = sprintf("%s\n", $msg);
+	$output = sprintf("%s%s", $msg, $newline ? '\n' : '');
 	echo $output;
 }
 
