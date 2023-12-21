@@ -108,16 +108,15 @@ function encrypt()
 	global $archive, $backup_conf;
 
 	$cmd = sprintf("gpg --encrypt -r %s --output %s.gpg %s && rm %s", $backup_conf['pgp_recipient'], $archive, $archive, $archive);
-	#$cmd = sprintf("gpg --encrypt -r %1$s --output %2$s.gpg %2$s && rm %2$s", $backup_conf['pgp_recipient'], $archive);
-	(DEBUG) && printf("DEBUG: \$cmd: %s\n", $cmd);
+	debug(sprintf("\$cmd: %s", $cmd));
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
-		echo sprintf("Archive encrypted for: %s\n", $backup_conf['pgp_recipient']);
+		inform(sprintf("Archive encrypted for: %s", $backup_conf['pgp_recipient']));
 		$archive = sprintf("%s.gpg", $archive);
 	} else {
-		echo "Error $retval:\n";
+		inform("Error $retval:");
 		foreach ($output as $line) {
-			echo "$line\n";
+			inform("$line");
 		}
 	}
 }
@@ -141,13 +140,13 @@ GROUP BY table_schema;", $lbl_db, $lbl_size_bytes, $lbl_size_mib);
 		die("MySQLi connection failed: " . $conn->connect_error);
 	} else {
 		$result = $conn->query($query);
-		echo sprintf("\n%1$- 30s | %2$ 15s | %3$ 15s\n", $lbl_db, $lbl_size_bytes, $lbl_size_mib);
-		echo sprintf("%1$'-30s-+-%1$'-15s-+-%1$'-15s\n", "-");
+		inform(sprintf("\n%1$- 30s | %2$ 15s | %3$ 15s", $lbl_db, $lbl_size_bytes, $lbl_size_mib));
+		inform(sprintf("%1$'-30s-+-%1$'-15s-+-%1$'-15s", "-"));
 		while($row = $result->fetch_assoc()) {
-			echo sprintf("%1$- 30s | %2$ 15d | %3$ 15.2f\n", $row[$lbl_db], $row[$lbl_size_bytes], $row[$lbl_size_mib]);
+			inform(sprintf("%1$- 30s | %2$ 15d | %3$ 15.2f", $row[$lbl_db], $row[$lbl_size_bytes], $row[$lbl_size_mib]));
 		}
 		$conn->close();
-		echo "\n";
+		inform("");
 	}
 }
 
@@ -157,7 +156,7 @@ function backup_mysql()
 
 	foreach ($backup_mysql["databases"] as $db) {
 		if (isset($db)) {
-			echo "Starting backup of mysql database '$db'\n";
+			inform("Starting backup of mysql database '$db'");
 			$filename =
 				$backup_conf["tmp_dir"] .
 				"/" .
@@ -180,11 +179,11 @@ function backup_mysql()
 			if ($retval == 0) {
 				$chown_cmd = "chown {$backup_conf["luser"]}:{$backup_conf["lgroup"]} $filename";
 				exec($chown_cmd, $output, $retval);
-				echo "Finished backup of mysql database '$db'\n";
+				inform("Finished backup of mysql database '$db'");
 			} else {
-				echo "Error $retval:\n";
+				inform("Error $retval:");
 				foreach ($output as $line) {
-					echo "$line\n";
+					inform("$line");
 				}
 				unlink($filename);
 				// exit($retval);
@@ -199,16 +198,16 @@ function copy_recursive($source_dir = "", $dest_dir = "")
 	$file_list = [];
 
 	if ($source_dir == "") {
-		echo "ERROR: copy_recursive: \$source_dir is empty\n";
+		inform("ERROR: copy_recursive: \$source_dir is empty");
 		$error = 1;
 	} elseif ($dest_dir == "") {
-		echo "ERROR: copy_recursive: \$dest_dir is empty\n";
+		inform("ERROR: copy_recursive: \$dest_dir is empty");
 		$error = 2;
 	} elseif (!is_readable($source_dir)) {
-		echo "ERROR: copy_recursive: \$source_dir is not readable\n";
+		inform("ERROR: copy_recursive: \$source_dir is not readable");
 		$error = 3;
 	} elseif (!is_writable($dest_dir)) {
-		echo "ERROR: copy_recursive: \$dest_dir is not writable\n";
+		inform("ERROR: copy_recursive: \$dest_dir is not writable");
 		$error = 4;
 	}
 
@@ -225,12 +224,7 @@ function copy_recursive($source_dir = "", $dest_dir = "")
 					$file_list[] = $copied_file;
 				}
 			} else {
-				DEBUG &&
-					(print "DEBUG: " .
-						date("H:i:s") .
-						" copy_recursive: copying $source_dir/" .
-						$contents[$i] .
-						" to $dest_dir\n");
+				debug(sprintf("copy_recursive: copying %s/%s to %s", $source_dir, $contents[$i], $dest_dir));
 				copy(
 					$source_dir . "/" . $contents[$i],
 					$dest_dir . "/" . $contents[$i]
@@ -239,18 +233,10 @@ function copy_recursive($source_dir = "", $dest_dir = "")
 			}
 		}
 	} else {
-		DEBUG &&
-			(print "DEBUG: " .
-				date("H:i:s") .
-				" copy_recursive: not copying anything due to error $error\n");
+		debug(sprintf("copy_recursive: not copying due to error %s", $error));
 	}
 
-	DEBUG &&
-		(print "DEBUG: " .
-			date("H:i:s") .
-			" copy_recursive: \$file_list contains " .
-			count($file_list) .
-			" items\n");
+	debug(sprintf("copy_recursive: \$file_list contains %d items"), count($file_list));
 	return $file_list;
 }
 
@@ -275,17 +261,17 @@ function remove_old()
 		$backup_conf["dst_dir"] .
 		" -mtime +" .
 		($backup_conf["retain"] - 1);
-	DEBUG && (print "DEBUG: Command = $cmd\n");
+	debug(sprintf("\$mc = %s"), $cmd);
 
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
-		echo "Files to be deleted:\n";
+		inform("Files to be deleted:");
 		foreach ($output as $key => $value) {
 			$md5_cmd = "md5sum $value | awk '{print $1}'";
 			$du_cmd = "du -b $value | awk '{print $1}'";
 			exec($md5_cmd, $md5, $retval);
 			exec($du_cmd, $du, $retval);
-			echo "$key: $value ($du[0] bytes, md5sum: $md5[0])\n";
+			inform("$key: $value ($du[0] bytes, md5sum: $md5[0])");
 		}
 	}
 	unset($output);
@@ -296,14 +282,14 @@ function remove_old()
 		" -mtime +" .
 		$backup_conf["retain"] .
 		" -delete";
-	DEBUG && (print "DEBUG: Command = $cmd\n");
+	debug(sprintf("\$cmd = %s"), $cmd);
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
-		echo "Finished cleaning up " . $backup_conf["dst_dir"] . " \n";
+		inform("Finished cleaning up " . $backup_conf["dst_dir"] . " ");
 	} else {
-		echo "Error $retval:\n";
+		inform("Error $retval:");
 		foreach ($output as $line) {
-			echo "$line\n";
+			inform("$line");
 		}
 	}
 
@@ -327,24 +313,17 @@ function backup_data()
 				// Copy certain folders to tmp to prevent files from changing during tar
 				if (strpos($afile, $search) === 0) {
 					// Open files, copy to tmp dir for tar
-					DEBUG &&
-						(print "DEBUG: " .
-							date("H:i:s") .
-							" backup_data: copying from $afile\n");
-					echo "Copying $afile to " .
-						$backup_conf["tmp_dir"] .
-						" and adding it to list of files to backup\n";
+					inform(sprintf("Copying %s to %s and adding it to list of files to backup", $afile, $backup_conf["tmp_dir"]));
 					$copied_files = copy_recursive(
 						$afile,
 						$backup_conf["tmp_dir"]
 					);
 				} elseif (is_readable($afile)) {
 					// Adding file/folder to list of backup
-					echo "Adding $afile to list of files to backup\n";
+					inform("Adding $afile to list of files to backup");
 					$files[] = $afile;
 				} else {
-					DEBUG &&
-						(print "DEBUG: Not adding $afile as it's not readable\n");
+					debug(sprintf("Not adding %s as it's not readable"), $afile);
 				}
 			}
 		}
@@ -359,7 +338,7 @@ function backup_data()
 			$exclusion = trim($buffer);
 			// Verify the line is not commented out
 			if (strpos($exclusion, "#") !== 0 and strlen($exclusion) > 0) {
-				echo "Adding $exclusion to list of files to exclude\n";
+				inform("Adding $exclusion to list of files to exclude");
 				$exclusions[] = $exclusion;
 			}
 		}
@@ -373,7 +352,7 @@ function backup_data()
 		"-" .
 		timestamp("Ymd") .
 		$backup_data["archive_extension"];
-	echo "Creating archive $archive\n";
+	inform("Creating archive $archive");
 
 	$cmd = $backup_data["archiver"];
 	$cmd .= " " . $backup_data["options"];
@@ -389,13 +368,13 @@ function backup_data()
 		$cmd .= " $file";
 	}
 
-	DEBUG && (print "DEBUG: " . date("H:i:s") . " \$cmd = $cmd\n");
+	debug(sprintf("\$cmd = %s"), $cmd);
 
 	exec($cmd, $output, $retval);
 	if ($retval != 0) {
-		echo "Error $retval:\n";
+		inform("Error $retval:");
 		foreach ($output as $line) {
-			echo "$line\n";
+			inform("$line");
 		}
 		die();
 	}
@@ -409,7 +388,7 @@ function backup_data()
 	$du_cmd = "du -b $archive | awk '{print $1}'";
 	exec($md5_cmd, $md5, $retval);
 	exec($du_cmd, $du, $retval);
-	echo "Finished creating $archive; size: $du[0]; md5sum: $md5[0]\n";
+	inform("Finished creating $archive; size: $du[0]; md5sum: $md5[0]");
 
 	$chown_cmd = "chown {$backup_conf["luser"]}:{$backup_conf["lgroup"]} $archive";
 	exec($chown_cmd, $output, $retval);
@@ -421,7 +400,7 @@ function store_remote()
 {
 	global $remote_host, $backup_conf;
 
-	echo sprintf("Storing archinve to %s at %s using %s\n", $remote_host['address'], $remote_host['location'], $remote_host['method']);
+	inform(sprintf("Storing archinve to %s at %s using %s", $remote_host['address'], $remote_host['location'], $remote_host['method']));
 
 	switch ($remote_host["method"]) {
 		case "scp":
@@ -452,11 +431,11 @@ function store_scp()
 	debug("Command = $cmd");
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
-		echo "Finished storing $archive\n";
+		inform("Finished storing $archive");
 	} else {
-		echo "Error $retval:\n";
+		inform("Error $retval:");
 		foreach ($output as $line) {
-			echo "$line\n";
+			inform("$line");
 		}
 	}
 }
@@ -478,11 +457,11 @@ function store_rsync()
 	debug("Command = $cmd");
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
-		echo "Finished storing $archive\n";
+		inform("Finished storing $archive");
 	} else {
-		echo "Error $retval:\n";
+		inform("Error $retval:");
 		foreach ($output as $line) {
-			echo "$line\n";
+			inform("$line");
 		}
 	}
 }
@@ -496,7 +475,7 @@ function store_ftp()
 		"-" .
 		timestamp("Ymd", strtotime("-" . $backup_conf["retain"] . " days")) .
 		$backup_data["archive_extension"];
-//	if ($backup_conf["pgp_encrypt"]) {
+
 	($backup_conf['pgp_encrypt']) && $old_archive = sprintf("%s.gpg", $old_archive);
 	debug(sprintf("\$old_archive: %s", $old_archive));
 	$remote_file = $remote_host["location"] . basename($archive);
@@ -509,13 +488,9 @@ function store_ftp()
 	);
 
 	if (ftp_delete($ftp_conn, $old_archive)) {
-		echo "Deleted $old_archive from FTP server " .
-			$remote_host["address"] .
-			"\n";
+		inform(sprintf("Deleted %s from server"), $old_archive);
 	} else {
-		echo "Unable to delete $old_archive from FTP server " .
-			$remote_host["address"] .
-			"\n";
+		inform(sprintf("Unable to delete %s from server"), $old_archive);
 	}
 
 	if (ftp_put($ftp_conn, $remote_file, $archive, FTP_BINARY)) {
@@ -542,7 +517,7 @@ function inform($msg, $newline = false)
 
 function debug($msg)
 {
-	(DEBUG) ? $output = sprintf("DEBUG: %s\n", $msg) : $output = "";
+	(DEBUG) ? $output = sprintf("DEBUG: %s | %s\n", date("H:i:s"), $msg) : $output = "";
 	print $output;
 }
 
