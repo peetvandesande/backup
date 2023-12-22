@@ -509,9 +509,9 @@ function timestamp($format = "Ymd-His", $time = 0)
 	}
 }
 
-function inform($msg, $newline = false)
+function inform($msg, $newline = true)
 {
-	$output = sprintf("%s%s", $msg, $newline ? '\n' : '');
+	$output = sprintf("%s%s", $msg, $newline ? '' : '');
 	echo $output;
 }
 
