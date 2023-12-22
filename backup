@@ -261,7 +261,7 @@ function remove_old()
 		$backup_conf["dst_dir"] .
 		" -mtime +" .
 		($backup_conf["retain"] - 1);
-	debug(sprintf("\$mc = %s"), $cmd);
+	debug(sprintf("\$mc = %s", $cmd));
 
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
