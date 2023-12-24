@@ -282,7 +282,7 @@ function remove_old()
 		" -mtime +" .
 		$backup_conf["retain"] .
 		" -delete";
-	debug(sprintf("\$cmd = %s"), $cmd);
+	debug(sprintf("\$cmd = %s", $cmd));
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
 		inform("Finished cleaning up " . $backup_conf["dst_dir"] . " ");
