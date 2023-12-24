@@ -511,7 +511,7 @@ function timestamp($format = "Ymd-His", $time = 0)
 
 function inform($msg, $newline = true)
 {
-	$output = sprintf("%s%s", $msg, $newline ? '' : '');
+	$output = sprintf("%s%s", $msg, $newline ? '\n' : '');
 	echo $output;
 }
 
