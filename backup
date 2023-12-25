@@ -400,7 +400,7 @@ function store_remote()
 {
 	global $remote_host, $backup_conf;
 
-	inform(sprintf("Storing archinve to %s at %s using %s", $remote_host['address'], $remote_host['location'], $remote_host['method']));
+	inform(sprintf("Storing archive to %s at %s using %s", $remote_host['address'], $remote_host['location'], $remote_host['method']));
 
 	switch ($remote_host["method"]) {
 		case "scp":
