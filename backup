@@ -323,7 +323,7 @@ function backup_data()
 					inform("Adding $afile to list of files to backup");
 					$files[] = $afile;
 				} else {
-					debug(sprintf("Not adding %s as it's not readable"), $afile);
+					debug(sprintf("Not adding %s as it's not readable", $afile));
 				}
 			}
 		}
