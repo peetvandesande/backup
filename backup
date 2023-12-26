@@ -369,7 +369,7 @@ function backup_data()
 		$cmd .= " $file";
 	}
 
-	debug(sprintf("\$cmd = %s"), $cmd);
+	debug(sprintf("\$cmd = %s", $cmd));
 
 	exec($cmd, $output, $retval);
 	if ($retval != 0) {
@@ -429,7 +429,7 @@ function store_scp()
 		":" .
 		$remote_host["location"];
 
-	debug("Command = $cmd");
+	debug(sprintf("\$cmd = %s", $cmd));
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
 		inform("Finished storing $archive");
@@ -455,7 +455,7 @@ function store_rsync()
 		":" .
 		$remote_host["location"];
 
-	debug("Command = $cmd");
+	debug(sprintf("\$cmd = %s", $cmd));
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
 		inform("Finished storing $archive");
