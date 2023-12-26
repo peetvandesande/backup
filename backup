@@ -167,9 +167,9 @@ function backup_mysql()
 			$cmd .= $backup_mysql["hostname"];
 			$cmd .= " --user=";
 			$cmd .= $backup_mysql["username"];
-			$cmd .= " --password=";
+			$cmd .= " --password='";
 			$cmd .= $backup_mysql["password"];
-			$cmd .= " ";
+			$cmd .= "' ";
 			$cmd .= $backup_mysql["options"];
 			$cmd .= " --databases $db";
 			$cmd .= " > $filename";
