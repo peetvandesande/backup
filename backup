@@ -173,6 +173,7 @@ function backup_mysql()
 			$cmd .= $backup_mysql["options"];
 			$cmd .= " --databases $db";
 			$cmd .= " > $filename";
+			debug(sprintf("\$mc = %s", $cmd));
 
 			exec("$cmd 2>1", $output, $retval);
 
