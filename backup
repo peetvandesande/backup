@@ -13,7 +13,7 @@ debug("Including $config_file");
 
 if (is_readable($config_file)) {
 	include_once $config_file;
-	$files[] = $backup_conf["tmp_dir"];
+	$files[] = $backup_conf['tmp_dir'];
 } else {
 	die('Can\'t read configuration file');
 }
@@ -27,7 +27,7 @@ inform("Ending $argv[0] at " . timestamp());
 function init()
 {
 	global $backup_conf;
-	foreach ([$backup_conf["dst_dir"], $backup_conf["tmp_dir"]] as $dir) {
+	foreach ([$backup_conf['dst_dir'], $backup_conf['tmp_dir']] as $dir) {
 		// Verify directory exists
 		if (is_dir($dir)) {
     		// Verify directory is writable
@@ -55,17 +55,17 @@ function main()
 	package_info();
 	mysql_db_size();
 
-	if (isset($backup_conf["retain"])) {
+	if (isset($backup_conf['retain'])) {
 		remove_old();
 	}
 
-	if (isset($backup_mysql["databases"])) {
+	if (isset($backup_mysql['databases'])) {
 		backup_mysql();
 	}
 
 	backup_data();
 
-	if ($backup_conf["store_remote"]) {
+	if ($backup_conf['store_remote']) {
 		store_remote();
 	}
 }
@@ -100,7 +100,7 @@ function housekeeping()
 {
 	global $backup_conf, $files;
 
-	delete_recursive($backup_conf["tmp_dir"] . "/");
+	delete_recursive($backup_conf['tmp_dir'] . "/");
 }
 
 function encrypt()
@@ -135,7 +135,7 @@ function mysql_db_size()
 FROM information_schema.tables
 GROUP BY table_schema;", $lbl_db, $lbl_size_bytes, $lbl_size_mib);
 
-	$conn = new mysqli($backup_mysql["hostname"], $backup_mysql["username"], $backup_mysql["password"]);
+	$conn = new mysqli($backup_mysql['hostname'], $backup_mysql['username'], $backup_mysql['password']);
 	if ($conn->connect_error) {
 		die("MySQLi connection failed: " . $conn->connect_error);
 	} else {
@@ -154,23 +154,23 @@ function backup_mysql()
 {
 	global $backup_mysql, $backup_conf;
 
-	foreach ($backup_mysql["databases"] as $db) {
+	foreach ($backup_mysql['databases'] as $db) {
 		if (isset($db)) {
 			inform("Starting backup of mysql database '$db'");
 			$filename =
-				$backup_conf["tmp_dir"] .
+				$backup_conf['tmp_dir'] .
 				"/" .
 				"$db-" .
 				timestamp("Ymd") .
 				".sql";
 			$cmd = "mysqldump --host=";
-			$cmd .= $backup_mysql["hostname"];
+			$cmd .= $backup_mysql['hostname'];
 			$cmd .= " --user=";
-			$cmd .= $backup_mysql["username"];
+			$cmd .= $backup_mysql['username'];
 			$cmd .= " --password='";
-			$cmd .= $backup_mysql["password"];
+			$cmd .= $backup_mysql['password'];
 			$cmd .= "' ";
-			$cmd .= $backup_mysql["options"];
+			$cmd .= $backup_mysql['options'];
 			$cmd .= " --databases $db";
 			$cmd .= " > $filename";
 			debug(sprintf("\$mc = %s", $cmd));
@@ -178,7 +178,7 @@ function backup_mysql()
 			exec("$cmd 2>1", $output, $retval);
 
 			if ($retval == 0) {
-				$chown_cmd = "chown {$backup_conf["luser"]}:{$backup_conf["lgroup"]} $filename";
+				$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $filename";
 				exec($chown_cmd, $output, $retval);
 				inform("Finished backup of mysql database '$db'");
 			} else {
@@ -259,9 +259,9 @@ function remove_old()
 	// List to-be deleted files
 	$cmd =
 		"find " .
-		$backup_conf["dst_dir"] .
+		$backup_conf['dst_dir'] .
 		" -mtime +" .
-		($backup_conf["retain"] - 1);
+		($backup_conf['retain'] - 1);
 	debug(sprintf("\$mc = %s", $cmd));
 
 	exec($cmd, $output, $retval);
@@ -279,14 +279,14 @@ function remove_old()
 
 	$cmd =
 		"find " .
-		$backup_conf["dst_dir"] .
+		$backup_conf['dst_dir'] .
 		" -mtime +" .
-		$backup_conf["retain"] .
+		$backup_conf['retain'] .
 		" -delete";
 	debug(sprintf("\$cmd = %s", $cmd));
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
-		inform("Finished cleaning up " . $backup_conf["dst_dir"] . " ");
+		inform("Finished cleaning up " . $backup_conf['dst_dir'] . " ");
 	} else {
 		inform("Error $retval:");
 		foreach ($output as $line) {
@@ -304,9 +304,9 @@ function backup_data()
 	$exclusions = [];
 
 	// Adding files and folders to list of data to backup
-	if (is_readable($backup_data["files"])) {
-		$handle = fopen($backup_data["files"], "r");
-		$fsize = filesize($backup_data["files"]);
+	if (is_readable($backup_data['files'])) {
+		$handle = fopen($backup_data['files'], "r");
+		$fsize = filesize($backup_data['files']);
 		while (($buffer = fgets($handle, $fsize)) !== false) {
 			$afile = trim($buffer);
 			// Verify the line is not commented out
@@ -314,10 +314,10 @@ function backup_data()
 				// Copy certain folders to tmp to prevent files from changing during tar
 				if (strpos($afile, $search) === 0) {
 					// Open files, copy to tmp dir for tar
-					inform(sprintf("Copying %s to %s and adding it to list of files to backup", $afile, $backup_conf["tmp_dir"]));
+					inform(sprintf("Copying %s to %s and adding it to list of files to backup", $afile, $backup_conf['tmp_dir']));
 					$copied_files = copy_recursive(
 						$afile,
-						$backup_conf["tmp_dir"]
+						$backup_conf['tmp_dir']
 					);
 				} elseif (is_readable($afile)) {
 					// Adding file/folder to list of backup
@@ -332,9 +332,9 @@ function backup_data()
 	}
 
 	// Removing exclusions from list of data to backup
-	if (is_readable($backup_data["files_skip"])) {
-		$handle = fopen($backup_data["files_skip"], "r");
-		$fsize = filesize($backup_data["files_skip"]);
+	if (is_readable($backup_data['files_skip'])) {
+		$handle = fopen($backup_data['files_skip'], "r");
+		$fsize = filesize($backup_data['files_skip']);
 		while (($buffer = fgets($handle, $fsize)) !== false) {
 			$exclusion = trim($buffer);
 			// Verify the line is not commented out
@@ -347,16 +347,16 @@ function backup_data()
 	}
 
 	$archive =
-		$backup_conf["dst_dir"] .
+		$backup_conf['dst_dir'] .
 		"/" .
-		$backup_conf["hostname"] .
+		$backup_conf['hostname'] .
 		"-" .
 		timestamp("Ymd") .
-		$backup_data["archive_extension"];
+		$backup_data['archive_extension'];
 	inform("Creating archive $archive");
 
-	$cmd = $backup_data["archiver"];
-	$cmd .= " " . $backup_data["options"];
+	$cmd = $backup_data['archiver'];
+	$cmd .= " " . $backup_data['options'];
 	$cmd .= " " . $archive;
 
 	if (count($exclusions) > 0) {
@@ -381,7 +381,7 @@ function backup_data()
 	}
 	unset($output);
 
-	if ($backup_conf["pgp_encrypt"]) {
+	if ($backup_conf['pgp_encrypt']) {
 		encrypt();
 	}
 
@@ -391,7 +391,7 @@ function backup_data()
 	exec($du_cmd, $du, $retval);
 	inform("Finished creating $archive; size: $du[0]; md5sum: $md5[0]");
 
-	$chown_cmd = "chown {$backup_conf["luser"]}:{$backup_conf["lgroup"]} $archive";
+	$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $archive";
 	exec($chown_cmd, $output, $retval);
 	$chmod_cmd = "chmod 640 $archive";
 	exec($chmod_cmd, $output, $retval);
@@ -403,7 +403,7 @@ function store_remote()
 
 	inform(sprintf("Storing archive to %s at %s using %s", $remote_host['address'], $remote_host['location'], $remote_host['method']));
 
-	switch ($remote_host["method"]) {
+	switch ($remote_host['method']) {
 		case "scp":
 			store_scp();
 			break;
@@ -420,14 +420,14 @@ function store_scp()
 {
 	global $archive, $remote_host, $backup_conf;
 
-		$cmd = "sudo -u {$backup_conf["luser"]} ";
+		$cmd = "sudo -u {$backup_conf['luser']} ";
 	$cmd .= "scp $archive ";
 	$cmd .=
-		$remote_host["username"] .
+		$remote_host['username'] .
 		"@" .
-		$remote_host["address"] .
+		$remote_host['address'] .
 		":" .
-		$remote_host["location"];
+		$remote_host['location'];
 
 	debug(sprintf("\$cmd = %s", $cmd));
 	exec($cmd, $output, $retval);
@@ -445,15 +445,15 @@ function store_rsync()
 {
 	global $archive, $remote_host, $backup_conf;
 
-	$cmd = "sudo -u {$backup_conf["luser"]} ";
-	$cmd .= "rsync " . $backup_conf["rsync_options"] . " ";
-	$cmd .= $backup_conf["dst_dir"] . "/ ";
+	$cmd = "sudo -u {$backup_conf['luser']} ";
+	$cmd .= "rsync " . $backup_conf['rsync_options'] . " ";
+	$cmd .= $backup_conf['dst_dir'] . "/ ";
 	$cmd .=
-		$remote_host["username"] .
+		$remote_host['username'] .
 		"@" .
-		$remote_host["address"] .
+		$remote_host['address'] .
 		":" .
-		$remote_host["location"];
+		$remote_host['location'];
 
 	debug(sprintf("\$cmd = %s", $cmd));
 	exec($cmd, $output, $retval);
@@ -471,21 +471,21 @@ function store_ftp()
 {
 	global $archive, $remote_host, $backup_conf, $backup_data;
 	$old_archive =
-		$remote_host["location"] .
-		$backup_conf["hostname"] .
+		$remote_host['location'] .
+		$backup_conf['hostname'] .
 		"-" .
-		timestamp("Ymd", strtotime("-" . $backup_conf["retain"] . " days")) .
-		$backup_data["archive_extension"];
+		timestamp("Ymd", strtotime("-" . $backup_conf['retain'] . " days")) .
+		$backup_data['archive_extension'];
 
 	($backup_conf['pgp_encrypt']) && $old_archive = sprintf("%s.gpg", $old_archive);
 	debug(sprintf("\$old_archive: %s", $old_archive));
-	$remote_file = $remote_host["location"] . basename($archive);
+	$remote_file = $remote_host['location'] . basename($archive);
 
-	$ftp_conn = ftp_connect($remote_host["address"]);
+	$ftp_conn = ftp_connect($remote_host['address']);
 	$login = ftp_login(
 		$ftp_conn,
-		$remote_host["username"],
-		$remote_host["password"]
+		$remote_host['username'],
+		$remote_host['password']
 	);
 
 	if (ftp_delete($ftp_conn, $old_archive)) {
