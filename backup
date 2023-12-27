@@ -456,13 +456,18 @@ function store_rsync()
 		$remote_host['location'];
 
 	debug(sprintf("\$cmd = %s", $cmd));
-	exec($cmd, $output, $retval);
-	if ($retval == 0) {
-		inform("Finished storing $archive");
-	} else {
-		inform("Error $retval:");
-		foreach ($output as $line) {
-			inform("$line");
+
+	$attempt = 0;
+	while ($attempt < $backup_conf['store_retry']) {
+		exec($cmd, $output, $retval);
+		if ($retval == 0) {
+			inform("Finished storing $archive");
+			break;
+		} else {
+			inform(sprintf("Error %d on attempt %d of %d", $retval, $attempt +1, $backup_conf['store_retry'] +1));
+			foreach ($output as $line) {
+				inform("$line");
+			}
 		}
 	}
 }

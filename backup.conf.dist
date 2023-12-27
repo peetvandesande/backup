@@ -9,6 +9,7 @@ $backup_conf['rsync_options'] = "-a -e ssh --delete";
 $backup_conf['retain'] = 1;
 $backup_conf['pgp_encrypt'] = true;
 $backup_conf['pgp_recipient'] = "peet@peetvandesande.com";
+$backup_conf['store_retry'] = 2;
 
 $backup_mysql['hostname'] = 'localhost';
 $backup_mysql['username'] = 'backup';
