@@ -468,6 +468,7 @@ function store_rsync()
 			foreach ($output as $line) {
 				inform("$line");
 			}
+			$attempt++;
 		}
 	}
 }
@@ -527,4 +528,22 @@ function debug($msg)
 	print $output;
 }
 
+function bash($cmd, &$stdout, &$stderr)
+{
+	$descriptorspec = [
+		0 => ["pipe", "r"],  // stdin
+		1 => ["pipe", "w"],  // stdout
+		2 => ["pipe", "w"],  // stderr
+	 ];
+
+	 $process = proc_open($cmd, $descriptorspec, $pipes);
+
+	 $stdout = stream_get_contents(($pipes[1]));
+	 fclose($pipes[1]);
+
+	 $stderr = stream_get_contents(($pipes[2]));
+	 fclose($pipes[2]);
+
+	 proc_close($process);
+}
 ?>
