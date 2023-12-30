@@ -1,16 +1,17 @@
 .PHONY = install
 install :
-	mkdir /etc/backup
-	cp backup.conf.dist /etc/backup
-	cp data.dist /etc/backup
-	cp backup /usr/local/bin
-	chmod +x /usr/local/bin/backup
+	sudo mkdir /etc/backup
+	sudo cp backup.conf.dist /etc/backup
+	sudo cp data.dist /etc/backup
+	sudo cp backup /usr/local/bin
+	sudo chmod +x /usr/local/bin/backup
 
 .PHONY = update
 update :
-	cp backup /usr/local/bin
+	git pull
+	sudo cp backup /usr/local/bin
 
 .PHONY = clean
 clean :
-	rm -rf /etc/backup
-	rm /usr/local/bin/backup
+	sudo rm -rf /etc/backup
+	sudo rm /usr/local/bin/backup
