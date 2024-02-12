@@ -259,7 +259,7 @@ class Archive {
         $this->debug(sprintf("\$cmd: %s", $cmd));
 
         if ($this->split_size > 0) {
-            $split = sprintf(" | %s -d -b %dK - %s.",
+            $split = sprintf(" | %s -d -b %dM - %s.",
                 $this->split_executable,
                 $this->split_size,
                 $this->filename
