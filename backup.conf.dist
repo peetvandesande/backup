@@ -7,7 +7,10 @@ $backup_conf['lgroup'] = 'backup';
 $backup_conf['store_remote'] = true;
 $backup_conf['rsync_options'] = "-a -e ssh --delete";
 $backup_conf['retain'] = 1;
-$backup_conf['pgp_encrypt'] = true;
+$backup_conf['split_size'] = 500;
+$backup_conf['tar_options'] = 'pP';
+$backup_conf['compression'] = 'bzip2';
+$backup_conf['pgp_encrypt'] = false;
 $backup_conf['pgp_recipient'] = "peet@peetvandesande.com";
 $backup_conf['store_retry'] = 2;
 
@@ -30,5 +33,3 @@ $remote_host['method'] = 'ftp';
 $remote_host['username'] = 'user';
 $remote_host['password'] = 'pass';
 $remote_host['location'] = 'backup/';
-
-?>

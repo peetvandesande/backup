@@ -1,19 +1,19 @@
 #!/usr/bin/php
 <?php
+// Record start time
+inform("Starting $argv[0] at " . timestamp());
 
 require("Archive.class.php");
 // error_reporting(E_ERROR);
 define("DEBUG", false);
 $config_dir = "/etc/backup";
+//$config_dir = ".";
 $config_file = $config_dir . "/backup.conf";
 $files = []; // Array of files to back up
 $archive = ""; // Filename of backup
 $class_archive = new Archive();
 
-// Record start time
-inform("Starting $argv[0] at " . timestamp());
 debug("Including $config_file");
-
 if (is_readable($config_file)) {
 	include_once $config_file;
 	$files[] = $backup_conf['tmp_dir'];
@@ -59,13 +59,13 @@ function init()
 function main()
 {
 	global $backup_mysql, $backup_conf;
-	package_info();
+//	package_info();
 
 	if (isset($backup_conf['retain'])) {
 		remove_old();
 	}
 
-	if (isset($backup_mysql['databases'])) {
+	if (count($backup_mysql['databases']) > 0) {
 		mysql_db_size();
 		backup_mysql();
 	}
@@ -365,7 +365,11 @@ function backup_data()
 		"-" .
 		timestamp("Ymd");
 	$class_archive->set_filename($archive);
-	$class_archive->set_compression_method("bzip2");
+	$class_archive->set_compression_method($backup_conf['compression']);
+	$class_archive->set_split_size($backup_conf['split_size']);
+	foreach (str_split($backup_conf['tar_options']) as $option) {
+		$class_archive->add_tar_option($option);
+	}
 //	$archive .= $backup_data['archive_extension'];
 //	inform("Creating archive $archive");
 //
@@ -395,8 +399,11 @@ function backup_data()
 //		die();
 //	}
 //	unset($output);
-	$class_archive->set_split_size(500);
-	$class_archive->write();
+	if($class_archive->write()) {
+		inform(sprintf("Wrote archive %s of size %d", $class_archive->get_filename(), $class_archive->get_size()));
+	} else {
+		exit("Unable to write archive or metafile\n");
+	}
 
 //
 //	if ($backup_conf['pgp_encrypt']) {
@@ -410,9 +417,15 @@ function backup_data()
 //	inform("Finished creating $archive; size: $du[0]; md5sum: $md5[0]");
 //
 	foreach($class_archive->get_chunks() as $chunk) {
-		$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $chunk";
+//		$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $chunk['filename']";
+		$chown_cmd = sprintf("chown %s:%s %s", 
+			$backup_conf['luser'],
+			$backup_conf['lgroup'],
+			$chunk['filename']
+		);
 		exec($chown_cmd, $output, $retval);
-		$chmod_cmd = "chmod 640 $chunk";
+//		$chmod_cmd = "chmod 640 $chunk";
+		$chmod_cmd = sprintf("chmod 640 %s", $chunk['filename']);
 		exec($chmod_cmd, $output, $retval);
 	}
 //	$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $archive";
