@@ -1,11 +1,14 @@
 #!/usr/bin/php
 <?php
+
+require("Archive.class.php");
 // error_reporting(E_ERROR);
 define("DEBUG", false);
 $config_dir = "/etc/backup";
 $config_file = $config_dir . "/backup.conf";
 $files = []; // Array of files to back up
 $archive = ""; // Filename of backup
+$class_archive = new Archive();
 
 // Record start time
 inform("Starting $argv[0] at " . timestamp());
@@ -15,7 +18,7 @@ if (is_readable($config_file)) {
 	include_once $config_file;
 	$files[] = $backup_conf['tmp_dir'];
 } else {
-	die('Can\'t read configuration file');
+	die ("Can't read configuration file\n");
 }
 
 init();
@@ -27,6 +30,10 @@ inform("Ending $argv[0] at " . timestamp());
 function init()
 {
 	global $backup_conf;
+
+	global $class_archive;
+	$class_archive->set_debug(DEBUG);
+
 	foreach ([$backup_conf['dst_dir'], $backup_conf['tmp_dir']] as $dir) {
 		// Verify directory exists
 		if (is_dir($dir)) {
@@ -53,13 +60,13 @@ function main()
 {
 	global $backup_mysql, $backup_conf;
 	package_info();
-	mysql_db_size();
 
 	if (isset($backup_conf['retain'])) {
 		remove_old();
 	}
 
 	if (isset($backup_mysql['databases'])) {
+		mysql_db_size();
 		backup_mysql();
 	}
 
@@ -100,7 +107,9 @@ function housekeeping()
 {
 	global $backup_conf, $files;
 
-	delete_recursive($backup_conf['tmp_dir'] . "/");
+	if (!$backup_conf['tmp_dir'] == "/tmp") {
+		delete_recursive($backup_conf['tmp_dir'] . "/");
+	}
 }
 
 function encrypt()
@@ -300,6 +309,7 @@ function remove_old()
 function backup_data()
 {
 	global $archive, $backup_data, $backup_conf, $files;
+	global $class_archive;
 	$search = "/var/log";
 	$exclusions = [];
 
@@ -322,6 +332,7 @@ function backup_data()
 				} elseif (is_readable($afile)) {
 					// Adding file/folder to list of backup
 					inform("Adding $afile to list of files to backup");
+					$class_archive->add_resource($afile);
 					$files[] = $afile;
 				} else {
 					debug(sprintf("Not adding %s as it's not readable", $afile));
@@ -340,6 +351,7 @@ function backup_data()
 			// Verify the line is not commented out
 			if (strpos($exclusion, "#") !== 0 and strlen($exclusion) > 0) {
 				inform("Adding $exclusion to list of files to exclude");
+				$class_archive->add_exclusion($exclusion);
 				$exclusions[] = $exclusion;
 			}
 		}
@@ -351,50 +363,62 @@ function backup_data()
 		"/" .
 		$backup_conf['hostname'] .
 		"-" .
-		timestamp("Ymd") .
-		$backup_data['archive_extension'];
-	inform("Creating archive $archive");
+		timestamp("Ymd");
+	$class_archive->set_filename($archive);
+	$class_archive->set_compression_method("bzip2");
+//	$archive .= $backup_data['archive_extension'];
+//	inform("Creating archive $archive");
+//
+//	$cmd = $backup_data['archiver'];
+//	$cmd .= " " . $backup_data['options'];
+//	$cmd .= " " . $archive;
+//
+//	if (count($exclusions) > 0) {
+//		foreach ($exclusions as $exclusion) {
+//			$cmd .= " --exclude=$exclusion";
+//		}
+//	}
+//
+//	foreach ($files as $file) {
+//		$cmd .= " $file";
+//	}
+//	$class_archive->write();
+//
+//	debug(sprintf("\$cmd = %s", $cmd));
+//
+//	exec($cmd, $output, $retval);
+//	if ($retval != 0) {
+//		inform("Error $retval:");
+//		foreach ($output as $line) {
+//			inform("$line");
+//		}
+//		die();
+//	}
+//	unset($output);
+	$class_archive->set_split_size(500);
+	$class_archive->write();
 
-	$cmd = $backup_data['archiver'];
-	$cmd .= " " . $backup_data['options'];
-	$cmd .= " " . $archive;
-
-	if (count($exclusions) > 0) {
-		foreach ($exclusions as $exclusion) {
-			$cmd .= " --exclude=$exclusion";
-		}
+//
+//	if ($backup_conf['pgp_encrypt']) {
+//		encrypt();
+//	}
+//
+//	$md5_cmd = "md5sum $archive | awk '{print $1}'";
+//	$du_cmd = "du -b $archive | awk '{print $1}'";
+//	exec($md5_cmd, $md5, $retval);
+//	exec($du_cmd, $du, $retval);
+//	inform("Finished creating $archive; size: $du[0]; md5sum: $md5[0]");
+//
+	foreach($class_archive->get_chunks() as $chunk) {
+		$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $chunk";
+		exec($chown_cmd, $output, $retval);
+		$chmod_cmd = "chmod 640 $chunk";
+		exec($chmod_cmd, $output, $retval);
 	}
-
-	foreach ($files as $file) {
-		$cmd .= " $file";
-	}
-
-	debug(sprintf("\$cmd = %s", $cmd));
-
-	exec($cmd, $output, $retval);
-	if ($retval != 0) {
-		inform("Error $retval:");
-		foreach ($output as $line) {
-			inform("$line");
-		}
-		die();
-	}
-	unset($output);
-
-	if ($backup_conf['pgp_encrypt']) {
-		encrypt();
-	}
-
-	$md5_cmd = "md5sum $archive | awk '{print $1}'";
-	$du_cmd = "du -b $archive | awk '{print $1}'";
-	exec($md5_cmd, $md5, $retval);
-	exec($du_cmd, $du, $retval);
-	inform("Finished creating $archive; size: $du[0]; md5sum: $md5[0]");
-
-	$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $archive";
-	exec($chown_cmd, $output, $retval);
-	$chmod_cmd = "chmod 640 $archive";
-	exec($chmod_cmd, $output, $retval);
+//	$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $archive";
+//	exec($chown_cmd, $output, $retval);
+//	$chmod_cmd = "chmod 640 $archive";
+//	exec($chmod_cmd, $output, $retval);
 }
 
 function store_remote()
@@ -443,7 +467,7 @@ function store_scp()
 
 function store_rsync()
 {
-	global $archive, $remote_host, $backup_conf;
+	global $remote_host, $backup_conf;
 
 	$cmd = "sudo -u {$backup_conf['luser']} ";
 	$cmd .= "rsync " . $backup_conf['rsync_options'] . " ";
@@ -461,7 +485,7 @@ function store_rsync()
 	while ($attempt < $backup_conf['store_retry']) {
 		exec($cmd, $output, $retval);
 		if ($retval == 0) {
-			inform("Finished storing $archive");
+			inform("Finished rsync");
 			break;
 		} else {
 			inform(sprintf("Error %d on attempt %d of %d", $retval, $attempt +1, $backup_conf['store_retry'] +1));
@@ -546,4 +570,5 @@ function bash($cmd, &$stdout, &$stderr)
 
 	 proc_close($process);
 }
+
 ?>
