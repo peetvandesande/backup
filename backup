@@ -542,5 +542,3 @@ function bash($cmd, &$stdout, &$stderr)
 
 	 proc_close($process);
 }
-
-?>
