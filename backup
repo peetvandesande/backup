@@ -9,7 +9,6 @@ define("DEBUG", false);
 $config_dir = "/etc/backup";
 //$config_dir = ".";
 $config_file = $config_dir . "/backup.conf";
-//$archive = ""; // Filename of backup
 $class_archive = new Archive();
 
 debug("Including $config_file");
@@ -32,6 +31,8 @@ function init()
 	global $class_archive;
 	$class_archive->set_debug(DEBUG);
 	$class_archive->add_resource($backup_conf['tmp_dir']);
+	$class_archive->set_location($backup_conf['dst_dir']);
+
 
 	foreach ([$backup_conf['dst_dir'], $backup_conf['tmp_dir']] as $dir) {
 		// Verify directory exists
@@ -361,8 +362,7 @@ function backup_data()
 		fclose($handle);
 	}
 
-	$archive_name = sprintf("%s/%s-%s",
-		$backup_conf['dst_dir'],
+	$archive_name = sprintf("%s-%s",
 		$backup_conf['hostname'],
 		timestamp("Ymd")
 	);
@@ -374,7 +374,7 @@ function backup_data()
 	foreach (str_split($backup_conf['tar_options']) as $option) {
 		$class_archive->add_tar_option($option);
 	}
-	if($class_archive->write()) {
+	if($class_archive->write_archive()) {
 		inform(sprintf("Wrote archive %s of size %d", $class_archive->get_filename(), $class_archive->get_size()));
 	} else {
 		exit("Unable to write archive or metafile\n");
