@@ -24,16 +24,7 @@ class Archive {
 
     public function __construct() {
         $this->debug = false;
-        $this->meta = array(
-            'date',
-            'time_start',
-            'time_stops',
-            'location',
-            'filename',
-            'archive_command',
-            'size',
-            'chunks'
-        );
+        $this->meta = array();
         $this->filename = "";
         $this->file_extension = ".tar";
         $this->split_size = 0;      // Max chunk size in MB
@@ -102,7 +93,7 @@ class Archive {
                 $cursor++;
             }
         }
-        $this->debug(json_encode($this->chunks, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        $this->debug(json_encode($this->chunks), JSON_PRETTY_PRINT);
     }
     public function get_chunks() {
         return $this->chunks;
