@@ -14,6 +14,7 @@ $class_archive = new Archive();
 debug("Including $config_file");
 if (is_readable($config_file)) {
 	include_once $config_file;
+	$files[] = $backup_conf['tmp_dir'];
 } else {
 	die ("Can't read configuration file\n");
 }
@@ -30,7 +31,6 @@ function init()
 
 	global $class_archive;
 	$class_archive->set_debug(DEBUG);
-	$class_archive->add_resource($backup_conf['tmp_dir']);
 
 
 	foreach ([$backup_conf['dst_dir'], $backup_conf['tmp_dir']] as $dir) {
@@ -58,7 +58,7 @@ function init()
 function main()
 {
 	global $backup_mysql, $backup_conf;
-	package_info();
+//	package_info();
 
 	if (isset($backup_conf['retain'])) {
 		remove_old();
@@ -104,7 +104,7 @@ function package_info()
 
 function housekeeping()
 {
-	global $backup_conf;
+	global $backup_conf, $files;
 
 	if (!$backup_conf['tmp_dir'] == "/tmp") {
 		delete_recursive($backup_conf['tmp_dir'] . "/");
@@ -165,29 +165,22 @@ function backup_mysql()
 	foreach ($backup_mysql['databases'] as $db) {
 		if (isset($db)) {
 			inform("Starting backup of mysql database '$db'");
-			$filename = sprintf("%s/%s-%s.sql",
-				$backup_conf['tmp_dir'],
-				"$db",
-				timestamp("Ymd")
-			);
-//			$cmd = "mysqldump --host=";
-//			$cmd .= $backup_mysql['hostname'];
-//			$cmd .= " --user=";
-//			$cmd .= $backup_mysql['username'];
-//			$cmd .= " --password='";
-//			$cmd .= $backup_mysql['password'];
-//			$cmd .= "' ";
-//			$cmd .= $backup_mysql['options'];
-//			$cmd .= " --databases $db";
-//			$cmd .= " > $filename";
-			$cmd = sprintf("mysqldump --host=\"%s\" --user=\"%s\" --password='%s' %s --databases '%s' > %s",
-				$backup_mysql['hostname'],
-				$backup_mysql['username'],
-				$backup_mysql['password'],
-				$backup_mysql['options'],
-				$db,
-				$filename
-			);
+			$filename =
+				$backup_conf['tmp_dir'] .
+				"/" .
+				"$db-" .
+				timestamp("Ymd") .
+				".sql";
+			$cmd = "mysqldump --host=";
+			$cmd .= $backup_mysql['hostname'];
+			$cmd .= " --user=";
+			$cmd .= $backup_mysql['username'];
+			$cmd .= " --password='";
+			$cmd .= $backup_mysql['password'];
+			$cmd .= "' ";
+			$cmd .= $backup_mysql['options'];
+			$cmd .= " --databases $db";
+			$cmd .= " > $filename";
 			debug(sprintf("\$mc = %s", $cmd));
 
 			exec("$cmd 2>1", $output, $retval);
@@ -322,9 +315,10 @@ function remove_old()
 
 function backup_data()
 {
-	global $backup_data, $backup_conf;
+	global $archive, $backup_data, $backup_conf, $files;
 	global $class_archive;
 	$search = "/var/log";
+	$exclusions = [];
 
 	// Adding files and folders to list of data to backup
 	if (is_readable($backup_data['files'])) {
@@ -346,6 +340,7 @@ function backup_data()
 					// Adding file/folder to list of backup
 					inform("Adding $afile to list of files to backup");
 					$class_archive->add_resource($afile);
+					$files[] = $afile;
 				} else {
 					debug(sprintf("Not adding %s as it's not readable", $afile));
 				}
@@ -364,6 +359,7 @@ function backup_data()
 			if (strpos($exclusion, "#") !== 0 and strlen($exclusion) > 0) {
 				inform("Adding $exclusion to list of files to exclude");
 				$class_archive->add_exclusion($exclusion);
+				$exclusions[] = $exclusion;
 			}
 		}
 		fclose($handle);
@@ -377,28 +373,47 @@ function backup_data()
 	// Write archive
 	$class_archive->set_location($backup_conf['dst_dir']);
 	$class_archive->set_filename($archive_name);
+
 	$class_archive->set_compression_method($backup_conf['compression']);
 	$class_archive->set_split_size($backup_conf['split_size']);
 	foreach (str_split($backup_conf['tar_options']) as $option) {
 		$class_archive->add_tar_option($option);
 	}
+
 	if($class_archive->write_archive()) {
+
 		inform(sprintf("Wrote archive %s of size %d", $class_archive->get_filename(), $class_archive->get_size()));
 	} else {
 		exit("Unable to write archive or metafile\n");
 	}
 
-	// Fix ownership & permissions of chunks
+//
+//	if ($backup_conf['pgp_encrypt']) {
+//		encrypt();
+//	}
+//
+//	$md5_cmd = "md5sum $archive | awk '{print $1}'";
+//	$du_cmd = "du -b $archive | awk '{print $1}'";
+//	exec($md5_cmd, $md5, $retval);
+//	exec($du_cmd, $du, $retval);
+//	inform("Finished creating $archive; size: $du[0]; md5sum: $md5[0]");
+//
 	foreach($class_archive->get_chunks() as $chunk) {
-		chown($chunk['filename'], $backup_conf['luser']);
-		chgrp($chunk['filename'], $backup_conf['lgroup']);
-		chmod($chunk['filename'], 0640);
+//		$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $chunk['filename']";
+		$chown_cmd = sprintf("chown %s:%s %s", 
+			$backup_conf['luser'],
+			$backup_conf['lgroup'],
+			$chunk['filename']
+		);
+		exec($chown_cmd, $output, $retval);
+//		$chmod_cmd = "chmod 640 $chunk";
+		$chmod_cmd = sprintf("chmod 640 %s", $chunk['filename']);
+		exec($chmod_cmd, $output, $retval);
 	}
-
-	// Fix ownership & permissions of metadata file
-	chown($class_archive->get_metadata_filename(), $backup_conf['luser']);
-	chgrp($class_archive->get_metadata_filename(), $backup_conf['lgroup']);
-	chmod($class_archive->get_metadata_filename(), 0640);
+//	$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $archive";
+//	exec($chown_cmd, $output, $retval);
+//	$chmod_cmd = "chmod 640 $archive";
+//	exec($chmod_cmd, $output, $retval);
 }
 
 function store_remote()
