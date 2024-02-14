@@ -3,11 +3,13 @@
 class Archive {
 
     private $debug;
-    private $meta;
-    private $filename;
+    private $metadata;
+    private $location;      // Directory where to store files
+    private $filename;      //  Name (-ing basis) for files
     private $metadata_filename;
     private $file_extension;
     private $split_size;
+    private $split_units;
     private $chunks;
     private $resources;
     private $exclusions;
@@ -18,16 +20,28 @@ class Archive {
     private $tar_executable;
     private $archive_command;   // Actual command to create the archive
     private $split_executable;
-    private $md5sum;
     private $size;
     private $return;            // Return value
 
     public function __construct() {
         $this->debug = false;
-        $this->meta = array();
+        $this->metadata = array(
+            'version' => 'v2.0.0-alpha-2',
+            'date' => '',
+            'time_start' => 0,
+            'time_stops' => 0,
+            'location' => '',
+            'filename' => '',
+            'archive_command' => '',
+            'size' => 0,
+            'chunks' => array()
+        );
+        $this->location = ".";
         $this->filename = "";
+        $this->metadata_filename = "";
         $this->file_extension = ".tar";
-        $this->split_size = 0;      // Max chunk size in MB
+        $this->split_size = 0;      // Max chunk size
+        $this->split_units = 'K';   // Units to measure split chunks
         $this->chunks = array();    // All the chunks created
         $this->resources = array(); // Files/directories to be added
         $this->exclusions = array();
@@ -37,7 +51,6 @@ class Archive {
         $this->tar_options = array();
         $this->tar_executable = "/usr/bin/tar";
         $this->split_executable = "/usr/bin/split";
-        $this->md5sum = array();
         $this->size = array();
         $this->return = false;
     }
@@ -50,6 +63,21 @@ class Archive {
         return $this->debug;
     }
 
+    public function get_metadata() {
+        return $this->metadata;
+    }
+
+    public function set_location( $location ) {
+        $this->debug(sprintf("Current working directory is: %s", getcwd() ) );
+        $this->location = $location;
+        $this->debug(sprintf("Setting location to %s", $location));
+        chdir( $location );
+        $this->debug(sprintf("Current working directory is: %s", getcwd() ) );
+    }
+    public function get_location() {
+        return $this->location;
+    }
+
     public function set_filename($filename) {
         $this->filename = $filename;
         $this->debug(sprintf("Setting filename to %s", $filename));
@@ -57,6 +85,12 @@ class Archive {
     }
     public function get_filename() {
         return $this->filename;
+    }
+
+    private function assume_metadata_filename() {
+        if ($this->metadata_filename == "") {
+            $this->set_metadata_filename(sprintf("%s.meta", $this->filename));
+        }
     }
 
     public function set_metadata_filename($metadata_filename) {
@@ -83,17 +117,17 @@ class Archive {
         return $this->split_size;
     }
 
-    private function set_chunks() {
-        $cursor = 0;
-        foreach (glob(sprintf("%s*", $this->filename)) as $file) {
-            if (filectime($file) > $this->meta['time_start']) {
-                $this->chunks[$cursor]['filename'] = $file;
-                $this->chunks[$cursor]['size'] = filesize($file);
-                $this->debug(sprintf("Adding %s to chunks", $file));
-                $cursor++;
-            }
-        }
-        $this->debug(json_encode($this->chunks), JSON_PRETTY_PRINT);
+    public function set_split_units($split_units) {
+        $this->split_units = $split_units;
+        $this->debug(sprintf("Setting split_units to %s", $split_units));
+    }
+    public function get_split_units() {
+        return $this->split_units;
+    }
+
+    private function add_chunk($chunk) {
+        $this->chunks[] = $chunk;
+        $this->debug(sprintf("Adding chunk: %s", json_encode($chunk, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)));
     }
     public function get_chunks() {
         return $this->chunks;
@@ -153,6 +187,15 @@ class Archive {
         return $this->tar_options;
     }
 
+    private function set_archive_command($command) {
+        $this->archive_command = $command;
+        $this->debug(sprintf("Setting archive_command to %s", $command));
+    }
+
+    public function get_archive_command() {
+        return $this->archive_command;
+    }
+
     public function set_tar_executable($tar_executable) {
         $this->tar_executable = $tar_executable;
         $this->debug(sprintf("Setting tar_executable to %s", $tar_executable));
@@ -169,33 +212,9 @@ class Archive {
         return $this->split_executable;
     }
 
-    private function set_checksum() {
-        /**
-         * Calculates checksum for all chunks
-         */
-        $cursor = 0;
-        foreach ($this->chunks as $chunk) {
-            $md5sum = md5_file($chunk['filename']);
-            $this->debug(sprintf("md5sum for %s is %s", $chunk['filename'], $md5sum));
-            $this->chunks[$cursor]['md5sum'] = $md5sum;
-            $cursor++;
-        }
-    }
-    public function get_md5sum() {
-        return $this->md5sum;
-    }
-
-    private function set_size() {
-        /**
-         * Calculate size of all chunks
-         */
-        $total = 0;
-        foreach ($this->chunks as $chunk) {
-            $total += $chunk['size'];
-        }
-        $this->debug(sprintf('Total size of archive: %d', $total));
-        $this->size = $total;
-        $this->meta['size'] = $this->size;
+    private function set_size($size) {
+        $this->size = $size;
+        $this->debug(sprintf('Size is: %d', $size));
     }
 
     public function get_size() {
@@ -225,10 +244,10 @@ class Archive {
                 $this->file_extension
             ));
         }
-        $this->meta['filename'] = $this->filename;
+        $this->metadata['filename'] = $this->filename;
     }
 
-    private function set_archive_command() {
+    private function compose_archive_command() {
         /**
          * Create the tar command
          */
@@ -259,9 +278,10 @@ class Archive {
         $this->debug(sprintf("\$cmd: %s", $cmd));
 
         if ($this->split_size > 0) {
-            $split = sprintf(" | %s -d -b %dM - %s.",
+            $split = sprintf(" | %s -d -b %d%s - %s.",
                 $this->split_executable,
                 $this->split_size,
+                $this->split_units,
                 $this->filename
             );
             $this->debug(sprintf("\$split: %s", $split));
@@ -270,30 +290,76 @@ class Archive {
 
         $this->debug(sprintf("\$cmd: %s", $cmd));
         $this->archive_command = $cmd;
-        $this->meta['archive_command'] = $this->archive_command;
+        $this->metadata['archive_command'] = $this->archive_command;
     }
 
-    public function write() {
+    private function list_chunks() {
+        /**
+         * List all chunks newly created
+         */
+        foreach (glob(sprintf("%s*", $this->filename)) as $file) {
+            if (filectime($file) >= $this->metadata['time_start']) {
+                $this->debug(sprintf("Adding chunk with name: %s", $file));
+                $chunk['filename'] = $file;
+                $chunk['size'] = filesize($file);
+                $this->add_chunk($chunk);
+            } else {
+                $this->debug(sprintf("Not adding file %s", $file));
+            }
+        }
+    }
+
+    private function calculate_size() {
+        /**
+         * Calculate size of all chunks
+         */
+        $total = 0;
+        foreach ($this->chunks as $chunk) {
+            $total += $chunk['size'];
+        }
+        $this->debug(sprintf('Total size of archive: %d', $total));
+        $this->set_size($total);
+        $this->metadata['size'] = $this->size;
+    }
+
+    private function calculate_checksums() {
+        /**
+         * Calculates checksum for all chunks
+         */
+        $cursor = 0;
+        foreach ($this->chunks as $chunk) {
+            $md5sum = md5_file($chunk['filename']);
+            $this->debug(sprintf("md5sum for %s is %s", $chunk['filename'], $md5sum));
+            $this->chunks[$cursor]['md5sum'] = $md5sum;
+            $cursor++;
+        }
+    }
+
+    public function write_archive() {
         /**
          * Orchestrates writing the archive to file 
          */
-        $this->meta['date'] = date('Ymd');
-        $this->meta['time_start'] = time();
-        $this->meta['time_stops'] = time();   // Placeholder to keep both values together
+        $this->metadata['date'] = date('Y-m-d');
+        $this->metadata['time_start'] = time();
+        $this->metadata['time_stops'] = time();   // Placeholder to keep both values together
         $this->check_filename();
         $this->add_tar_option('c');
-        $this->set_archive_command();
+        $this->compose_archive_command();
 
         $output = "";
         $retval = "";
+        $this->debug(sprintf("Current working directory is: %s", getcwd() ) );
         if ($this->shell($this->archive_command, $output, $retval)) {
 			$this->return = true;
-		}
+            $this->debug(sprintf("Archive %s written at location %s", $this->filename, $this->location));
+		} else {
+            exit("Unable to write archive\n");
+        }
 
-        $this->set_chunks();
-        $this->set_size();
-        $this->set_checksum();
-        $this->meta['chunks'] = $this->chunks;
+        $this->list_chunks();
+        $this->calculate_size();
+        $this->calculate_checksums();
+        $this->metadata['chunks'] = $this->chunks;
         $this->write_meta_file();
 
         return $this->return;
@@ -303,24 +369,34 @@ class Archive {
         /**
          * Write the meta array to a json file
          */
-        $this->meta['time_stops'] = time();
+        $this->metadata['time_stops'] = time();
         $metafile = fopen($this->metadata_filename,'w');
         if ($metafile) {
-            fwrite($metafile, json_encode($this->meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            fwrite($metafile, json_encode($this->metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
             fclose($metafile);
         } else {
             $this->return = false;
         }
     }
 
-    private function assume_metadata_filename() {
-        $path_parts = pathinfo($this->filename);
-        $file_parts = explode('.', $path_parts['basename']);
-        $metadata_filename = sprintf("%s/%s.meta",
-            $path_parts['dirname'],
-            $file_parts[0]
-        );
-        $this->set_metadata_filename($metadata_filename);
+    public function load_meta_file() {
+        /**
+         * Load existing meta file
+         */
+        $metafile = fopen($this->metadata_filename,'r');
+        if ($metafile) {
+            $this->metadata = json_decode(fread($metafile, filesize($this->metadata_filename)), true);
+            fclose($metafile);
+        } else {
+            return(false);
+        }
+
+        $this->set_filename($this->metadata['filename']);
+        $this->set_archive_command($this->metadata['archive_command']);
+        $this->set_size($this->metadata['size']);
+        foreach ($this->metadata['chunks'] as $chunk) {
+            $this->add_chunk($chunk);
+        }
     }
 
     public function pgp_encrypt() {

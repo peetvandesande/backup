@@ -5,12 +5,10 @@ inform("Starting $argv[0] at " . timestamp());
 
 require("Archive.class.php");
 // error_reporting(E_ERROR);
-define("DEBUG", false);
+define("DEBUG", true);
 $config_dir = "/etc/backup";
-//$config_dir = ".";
+$config_dir = ".";
 $config_file = $config_dir . "/backup.conf";
-$files = []; // Array of files to back up
-$archive = ""; // Filename of backup
 $class_archive = new Archive();
 
 debug("Including $config_file");
@@ -33,6 +31,7 @@ function init()
 
 	global $class_archive;
 	$class_archive->set_debug(DEBUG);
+
 
 	foreach ([$backup_conf['dst_dir'], $backup_conf['tmp_dir']] as $dir) {
 		// Verify directory exists
@@ -264,43 +263,51 @@ function delete_recursive($dir = "")
 function remove_old()
 {
 	global $backup_conf;
+	$metafiles = array();
 
-	// List to-be deleted files
-	$cmd =
-		"find " .
-		$backup_conf['dst_dir'] .
-		" -mtime +" .
-		($backup_conf['retain'] - 1);
-	debug(sprintf("\$mc = %s", $cmd));
+	chdir($backup_conf["dst_dir"]);
+	$cmd = sprintf("find %s -maxdepth 1 -type f -name *.meta", $backup_conf["dst_dir"]);
+	debug(sprintf("\$cmd = %s", $cmd));
 
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
-		inform("Files to be deleted:");
 		foreach ($output as $key => $value) {
-			$md5_cmd = "md5sum $value | awk '{print $1}'";
-			$du_cmd = "du -b $value | awk '{print $1}'";
-			exec($md5_cmd, $md5, $retval);
-			exec($du_cmd, $du, $retval);
-			inform("$key: $value ($du[0] bytes, md5sum: $md5[0])");
+			inform(sprintf("Adding metadata file: %s", $value));
+			$metafiles[] = $value;
 		}
 	}
 	unset($output);
 
-	$cmd =
-		"find " .
-		$backup_conf['dst_dir'] .
-		" -mtime +" .
-		$backup_conf['retain'] .
-		" -delete";
-	debug(sprintf("\$cmd = %s", $cmd));
-	exec($cmd, $output, $retval);
-	if ($retval == 0) {
-		inform("Finished cleaning up " . $backup_conf['dst_dir'] . " ");
-	} else {
-		inform("Error $retval:");
-		foreach ($output as $line) {
-			inform("$line");
+	foreach ($metafiles as $file) {
+		$archive = new Archive();
+		$archive->set_debug(DEBUG);
+		if (strstr($file, '/')) {
+			// filename includes a location, strip it off
+			$path_parts = pathinfo($file);
+			$archive->set_location($path_parts['dirname']);
+			$archive->set_metadata_filename($path_parts['basename']);
+		} else {
+			$archive->set_location($backup_conf['dst_dir']);
+			$archive->set_metadata_filename($file);
 		}
+		$archive->load_meta_file();
+		inform(sprintf("  Metadata file %s is from date: %s", $file, $archive->get_metadata()['date']));
+
+		$interval = date_diff(new DateTime(), date_create($archive->get_metadata()['date']));
+		inform(sprintf("  Date difference between today and archive is: %d days", $interval->days));
+
+		if ($interval->days > $backup_conf['retain']) {
+			// Remove backups
+			chdir($archive->get_location());
+			inform(sprintf("  Removing archive %s", $archive->get_filename()));
+			foreach ($archive->get_chunks() as $chunk) {
+				inform(sprintf("    Deleting file: %s", $chunk['filename']));
+				unlink($chunk['filename']);
+			}
+			inform(sprintf("    Deleting metafile: %s", $file));
+			unlink($file);
+		}
+		unset ($archive);
 	}
 
 	return 0;
@@ -358,48 +365,23 @@ function backup_data()
 		fclose($handle);
 	}
 
-	$archive =
-		$backup_conf['dst_dir'] .
-		"/" .
-		$backup_conf['hostname'] .
-		"-" .
-		timestamp("Ymd");
-	$class_archive->set_filename($archive);
+	$archive_name = sprintf("%s-%s",
+		$backup_conf['hostname'],
+		timestamp("Ymd")
+	);
+
+	// Write archive
+	$class_archive->set_location($backup_conf['dst_dir']);
+	$class_archive->set_filename($archive_name);
+
 	$class_archive->set_compression_method($backup_conf['compression']);
 	$class_archive->set_split_size($backup_conf['split_size']);
 	foreach (str_split($backup_conf['tar_options']) as $option) {
 		$class_archive->add_tar_option($option);
 	}
-//	$archive .= $backup_data['archive_extension'];
-//	inform("Creating archive $archive");
-//
-//	$cmd = $backup_data['archiver'];
-//	$cmd .= " " . $backup_data['options'];
-//	$cmd .= " " . $archive;
-//
-//	if (count($exclusions) > 0) {
-//		foreach ($exclusions as $exclusion) {
-//			$cmd .= " --exclude=$exclusion";
-//		}
-//	}
-//
-//	foreach ($files as $file) {
-//		$cmd .= " $file";
-//	}
-//	$class_archive->write();
-//
-//	debug(sprintf("\$cmd = %s", $cmd));
-//
-//	exec($cmd, $output, $retval);
-//	if ($retval != 0) {
-//		inform("Error $retval:");
-//		foreach ($output as $line) {
-//			inform("$line");
-//		}
-//		die();
-//	}
-//	unset($output);
-	if($class_archive->write()) {
+
+	if($class_archive->write_archive()) {
+
 		inform(sprintf("Wrote archive %s of size %d", $class_archive->get_filename(), $class_archive->get_size()));
 	} else {
 		exit("Unable to write archive or metafile\n");
@@ -583,5 +565,3 @@ function bash($cmd, &$stdout, &$stderr)
 
 	 proc_close($process);
 }
-
-?>
