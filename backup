@@ -5,9 +5,9 @@ inform("Starting $argv[0] at " . timestamp());
 
 require("Archive.class.php");
 // error_reporting(E_ERROR);
-define("DEBUG", true);
+define("DEBUG", false);
 $config_dir = "/etc/backup";
-$config_dir = ".";
+//$config_dir = ".";
 $config_file = $config_dir . "/backup.conf";
 $class_archive = new Archive();
 

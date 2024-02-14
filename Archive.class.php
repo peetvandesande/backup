@@ -4,6 +4,7 @@ class Archive {
 
     private $debug;
     private $metadata;
+    private $description;   // Free-form optional description
     private $location;      // Directory where to store files
     private $filename;      //  Name (-ing basis) for files
     private $metadata_filename;
@@ -27,6 +28,7 @@ class Archive {
         $this->debug = false;
         $this->metadata = array(
             'version' => 'v2.0.0-alpha-2',
+            'description' => '',
             'date' => '',
             'time_start' => 0,
             'time_stops' => 0,
@@ -36,12 +38,13 @@ class Archive {
             'size' => 0,
             'chunks' => array()
         );
-        $this->location = ".";
+        $this->description = '';
+        $this->location = "";
         $this->filename = "";
         $this->metadata_filename = "";
         $this->file_extension = ".tar";
         $this->split_size = 0;      // Max chunk size
-        $this->split_units = 'K';   // Units to measure split chunks
+        $this->split_units = 'M';   // Units to measure split chunks
         $this->chunks = array();    // All the chunks created
         $this->resources = array(); // Files/directories to be added
         $this->exclusions = array();
@@ -65,6 +68,16 @@ class Archive {
 
     public function get_metadata() {
         return $this->metadata;
+    }
+
+    public function set_description( $description ) {
+        $this->description = $description;
+        $this->metadata['$description'] = $description;
+        $this->debug(sprintf("Setting description to: %s", $description));
+    }
+
+    public function get_description() {
+        return $this->description;
     }
 
     public function set_location( $location ) {
@@ -391,7 +404,16 @@ class Archive {
             return(false);
         }
 
+        $this->set_description($this->metadata['description']);
         $this->set_filename($this->metadata['filename']);
+        if ($this->metadata['location'] == "") {
+            // location is not set, get it from filename
+            $location = pathinfo($this->metadata['filename'], PATHINFO_DIRNAME);
+            $this->metadata["location"] = $location;
+            $this->set_location($location);
+        } else {
+            $this->set_location($this->metadata["location"]);
+        }
         $this->set_archive_command($this->metadata['archive_command']);
         $this->set_size($this->metadata['size']);
         foreach ($this->metadata['chunks'] as $chunk) {
