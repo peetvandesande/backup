@@ -3,7 +3,7 @@
 class Archive {
 
     private $debug;
-    private $meta;
+    private $metadata;
     private $location;      // Directory where to store files
     private $filename;      //  Name (-ing basis) for files
     private $metadata_filename;
@@ -25,7 +25,7 @@ class Archive {
 
     public function __construct() {
         $this->debug = false;
-        $this->meta = array(
+        $this->metadata = array(
             'version' => 'v2.0.0-alpha-2',
             'date' => '',
             'time_start' => 0,
@@ -61,6 +61,10 @@ class Archive {
     }
     public function get_debug() {
         return $this->debug;
+    }
+
+    public function get_metadata() {
+        return $this->metadata;
     }
 
     public function set_location( $location ) {
@@ -240,7 +244,7 @@ class Archive {
                 $this->file_extension
             ));
         }
-        $this->meta['filename'] = $this->filename;
+        $this->metadata['filename'] = $this->filename;
     }
 
     private function compose_archive_command() {
@@ -286,7 +290,7 @@ class Archive {
 
         $this->debug(sprintf("\$cmd: %s", $cmd));
         $this->archive_command = $cmd;
-        $this->meta['archive_command'] = $this->archive_command;
+        $this->metadata['archive_command'] = $this->archive_command;
     }
 
     private function list_chunks() {
@@ -294,7 +298,7 @@ class Archive {
          * List all chunks newly created
          */
         foreach (glob(sprintf("%s*", $this->filename)) as $file) {
-            if (filectime($file) >= $this->meta['time_start']) {
+            if (filectime($file) >= $this->metadata['time_start']) {
                 $this->debug(sprintf("Adding chunk with name: %s", $file));
                 $chunk['filename'] = $file;
                 $chunk['size'] = filesize($file);
@@ -315,7 +319,7 @@ class Archive {
         }
         $this->debug(sprintf('Total size of archive: %d', $total));
         $this->set_size($total);
-        $this->meta['size'] = $this->size;
+        $this->metadata['size'] = $this->size;
     }
 
     private function calculate_checksums() {
@@ -335,9 +339,9 @@ class Archive {
         /**
          * Orchestrates writing the archive to file 
          */
-        $this->meta['date'] = date('Ymd');
-        $this->meta['time_start'] = time();
-        $this->meta['time_stops'] = time();   // Placeholder to keep both values together
+        $this->metadata['date'] = date('Y-m-d');
+        $this->metadata['time_start'] = time();
+        $this->metadata['time_stops'] = time();   // Placeholder to keep both values together
         $this->check_filename();
         $this->add_tar_option('c');
         $this->compose_archive_command();
@@ -355,7 +359,7 @@ class Archive {
         $this->list_chunks();
         $this->calculate_size();
         $this->calculate_checksums();
-        $this->meta['chunks'] = $this->chunks;
+        $this->metadata['chunks'] = $this->chunks;
         $this->write_meta_file();
 
         return $this->return;
@@ -365,10 +369,10 @@ class Archive {
         /**
          * Write the meta array to a json file
          */
-        $this->meta['time_stops'] = time();
+        $this->metadata['time_stops'] = time();
         $metafile = fopen($this->metadata_filename,'w');
         if ($metafile) {
-            fwrite($metafile, json_encode($this->meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            fwrite($metafile, json_encode($this->metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
             fclose($metafile);
         } else {
             $this->return = false;
@@ -381,19 +385,16 @@ class Archive {
          */
         $metafile = fopen($this->metadata_filename,'r');
         if ($metafile) {
-            $this->meta[] = json_decode(fread($metafile, filesize($this->metadata_filename)), true);
-            fread($metafile, json_encode($this->meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $this->metadata = json_decode(fread($metafile, filesize($this->metadata_filename)), true);
             fclose($metafile);
         } else {
             return(false);
         }
 
-        $this->set_location($this->meta['location']);
-        $this->set_filename($this->meta['filename']);
-        $this->set_archive_command($this->meta['archive_command']);
-        $this->set_size($this->meta['size']);
-
-        foreach($this->meta['chunks'] as $chunk) {
+        $this->set_filename($this->metadata['filename']);
+        $this->set_archive_command($this->metadata['archive_command']);
+        $this->set_size($this->metadata['size']);
+        foreach ($this->metadata['chunks'] as $chunk) {
             $this->add_chunk($chunk);
         }
     }
