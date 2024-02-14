@@ -170,16 +170,6 @@ function backup_mysql()
 				"$db",
 				timestamp("Ymd")
 			);
-//			$cmd = "mysqldump --host=";
-//			$cmd .= $backup_mysql['hostname'];
-//			$cmd .= " --user=";
-//			$cmd .= $backup_mysql['username'];
-//			$cmd .= " --password='";
-//			$cmd .= $backup_mysql['password'];
-//			$cmd .= "' ";
-//			$cmd .= $backup_mysql['options'];
-//			$cmd .= " --databases $db";
-//			$cmd .= " > $filename";
 			$cmd = sprintf("mysqldump --host=\"%s\" --user=\"%s\" --password='%s' %s --databases '%s' > %s",
 				$backup_mysql['hostname'],
 				$backup_mysql['username'],
@@ -273,7 +263,7 @@ function remove_old()
 	$metafiles = array();
 
 	chdir($backup_conf["dst_dir"]);
-	$cmd = sprintf("find %s -maxdepth 1 -type f -name *.meta", $backup_conf["dst_dir"]);
+	$cmd = sprintf("find %s -maxdepth 1 -type f -name '*.meta'", $backup_conf["dst_dir"]);
 	debug(sprintf("\$cmd = %s", $cmd));
 
 	exec($cmd, $output, $retval);
