@@ -220,11 +220,14 @@ function copy_recursive($source_dir = "", $dest_dir = "")
 	if ($error === 0) {
 		$contents = scandir($source_dir);
 		for ($i = 2; $i < count($contents); $i++) {
-			if (is_dir($source_dir . "/" . $contents[$i])) {
-				mkdir($dest_dir . "/" . $contents[$i]);
+			$newresource = sprintf("%s/%s", $source_dir, $contents[$i]);
+			if (is_dir(sprintf("%s/%s", $source_dir, $contents[$i]))) {
+				if (! (file_exists($newresource) && is_dir($newresource))) {
+					mkdir($newresource);
+				}
 				$copied_files = copy_recursive(
 					$source_dir . "/" . $contents[$i],
-					$dest_dir . "/" . $contents[$i]
+					$newresource
 				);
 				foreach ($copied_files as $copied_file) {
 					$file_list[] = $copied_file;
@@ -233,7 +236,7 @@ function copy_recursive($source_dir = "", $dest_dir = "")
 				debug(sprintf("copy_recursive: copying %s/%s to %s", $source_dir, $contents[$i], $dest_dir));
 				copy(
 					$source_dir . "/" . $contents[$i],
-					$dest_dir . "/" . $contents[$i]
+					$newresource
 				);
 				$file_list[] = $dest_dir . "/" . $contents[$i];
 			}
@@ -315,6 +318,7 @@ function backup_data()
 	global $backup_data, $backup_conf;
 	global $class_archive;
 	$search = "/var/log";
+	$filemode = 0640;
 
 	// Adding files and folders to list of data to backup
 	if (is_readable($backup_data['files'])) {
@@ -383,13 +387,13 @@ function backup_data()
 	foreach($class_archive->get_chunks() as $chunk) {
 		chown($chunk['filename'], $backup_conf['luser']);
 		chgrp($chunk['filename'], $backup_conf['lgroup']);
-		chmod($chunk['filename'], 0640);
+		chmod($chunk['filename'], $filemode);
 	}
 
 	// Fix ownership & permissions of metadata file
 	chown($class_archive->get_metadata_filename(), $backup_conf['luser']);
 	chgrp($class_archive->get_metadata_filename(), $backup_conf['lgroup']);
-	chmod($class_archive->get_metadata_filename(), 0640);
+	chmod($class_archive->get_metadata_filename(), $filemode);
 }
 
 function store_remote()
@@ -415,7 +419,7 @@ function store_scp()
 {
 	global $archive, $remote_host, $backup_conf;
 
-		$cmd = "sudo -u {$backup_conf['luser']} ";
+	$cmd = "sudo -u {$backup_conf['luser']} ";
 	$cmd .= "scp $archive ";
 	$cmd .=
 		$remote_host['username'] .
@@ -440,16 +444,24 @@ function store_rsync()
 {
 	global $remote_host, $backup_conf;
 
-	$cmd = "sudo -u {$backup_conf['luser']} ";
-	$cmd .= "rsync " . $backup_conf['rsync_options'] . " ";
-	$cmd .= $backup_conf['dst_dir'] . "/ ";
-	$cmd .=
-		$remote_host['username'] .
-		"@" .
-		$remote_host['address'] .
-		":" .
-		$remote_host['location'];
+//	$cmd = "sudo -u {$backup_conf['luser']} ";
+//	$cmd .= "rsync " . $backup_conf['rsync_options'] . " ";
+//	$cmd .= $backup_conf['dst_dir'] . "/ ";
+//	$cmd .=
+//		$remote_host['username'] .
+//		"@" .
+//		$remote_host['address'] .
+//		":" .
+//		$remote_host['location'];
 
+	$cmd = sprintf("sudo -u %s rsync %s %/ %s@%s:%s",
+		$backup_conf['luser'],
+		$backup_conf['rsync_options'],
+		$backup_conf['dst_dir'],
+		$remote_host['username'],
+		$remote_host['address'],
+		$remote_host['location']
+	);
 	debug(sprintf("\$cmd = %s", $cmd));
 
 	$attempt = 0;
