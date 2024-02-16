@@ -454,7 +454,7 @@ function store_rsync()
 //		":" .
 //		$remote_host['location'];
 
-	$cmd = sprintf("sudo -u %s rsync %s %/ %s@%s:%s",
+	$cmd = sprintf("sudo -u %s rsync %s %s/ %s@%s:%s",
 		$backup_conf['luser'],
 		$backup_conf['rsync_options'],
 		$backup_conf['dst_dir'],
