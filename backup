@@ -444,16 +444,6 @@ function store_rsync()
 {
 	global $remote_host, $backup_conf;
 
-//	$cmd = "sudo -u {$backup_conf['luser']} ";
-//	$cmd .= "rsync " . $backup_conf['rsync_options'] . " ";
-//	$cmd .= $backup_conf['dst_dir'] . "/ ";
-//	$cmd .=
-//		$remote_host['username'] .
-//		"@" .
-//		$remote_host['address'] .
-//		":" .
-//		$remote_host['location'];
-
 	$cmd = sprintf("sudo -u %s rsync %s %s/ %s@%s:%s",
 		$backup_conf['luser'],
 		$backup_conf['rsync_options'],
@@ -465,10 +455,12 @@ function store_rsync()
 	debug(sprintf("\$cmd = %s", $cmd));
 
 	$attempt = 0;
+	inform(sprintf("Starting rsync"));
 	while ($attempt < $backup_conf['store_retry']) {
+		inform(sprintf("  Attempt %d at %s", $attempt + 1, date("H:i:s")));
 		exec($cmd, $output, $retval);
 		if ($retval == 0) {
-			inform("Finished rsync");
+			inform("Finished rsync at %s", date("H:i:s"));
 			break;
 		} else {
 			inform(sprintf("Error %d on attempt %d of %d", $retval, $attempt +1, $backup_conf['store_retry'] +1));
