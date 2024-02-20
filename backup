@@ -291,10 +291,7 @@ function remove_old()
 			$archive->set_metadata_filename($file);
 		}
 		$archive->load_meta_file();
-		inform(sprintf("Metadata file %s is from date: %s", $file, $archive->get_metadata()['date']));
-
 		$interval = date_diff(new DateTime(), date_create($archive->get_metadata()['date']));
-		inform(sprintf("  Date difference between today and archive is: %d days", $interval->days));
 
 		if ($interval->days > $backup_conf['retain']) {
 			// Remove backups
