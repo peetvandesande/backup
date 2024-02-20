@@ -375,7 +375,7 @@ function backup_data()
 	}
 	inform(sprintf("Writing archive %s... ", $class_archive->get_filename()), false);
 	if($class_archive->write_archive()) {
-		inform(sprintf("Done. Size is: %d", $class_archive->get_filename(), $class_archive->get_size()));
+		inform(sprintf("Done. Size is: %d", $class_archive->get_size()));
 	} else {
 		exit("Unable to write archive or metafile\n");
 	}
