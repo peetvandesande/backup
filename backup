@@ -376,7 +376,7 @@ function backup_data()
 	}
 	inform(sprintf("Writing archive %s... ", $class_archive->get_filename()), false);
 	if($class_archive->write_archive()) {
-		inform(sprintf("Done. Size is: %d", $class_archive->get_size()));
+		inform(sprintf("Done. Size is: %s (%dB)", formatBytes($class_archive->get_size()), $class_archive->get_size()));
 	} else {
 		exit("Unable to write archive or metafile\n");
 	}
@@ -511,6 +511,14 @@ function timestamp($format = "Ymd-His", $time = 0)
 	} else {
 		return date($format);
 	}
+}
+
+function formatBytes($size, $precision = 2)
+{
+    $base = log($size, 1024);
+    $suffixes = array('', 'K', 'M', 'G', 'T');   
+
+    return round(pow(1024, $base - floor($base)), $precision) .' '. $suffixes[floor($base)];
 }
 
 function inform($msg, $newline = true)
