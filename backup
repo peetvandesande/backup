@@ -265,6 +265,8 @@ function remove_old()
 	global $backup_conf;
 	$metafiles = array();
 
+	inform("Clearing old archives");
+
 	chdir($backup_conf["dst_dir"]);
 	$cmd = sprintf("find %s -maxdepth 1 -type f -name '*.meta'", $backup_conf["dst_dir"]);
 	debug(sprintf("\$cmd = %s", $cmd));
@@ -272,7 +274,6 @@ function remove_old()
 	exec($cmd, $output, $retval);
 	if ($retval == 0) {
 		foreach ($output as $key => $value) {
-			inform(sprintf("Adding metadata file: %s", $value));
 			$metafiles[] = $value;
 		}
 	}
