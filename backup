@@ -164,7 +164,7 @@ function backup_mysql()
 
 	foreach ($backup_mysql['databases'] as $db) {
 		if (isset($db)) {
-			inform("Starting backup of mysql database '$db'");
+			inform("Starting backup of mysql database '$db'...", false);
 			$filename = sprintf("%s/%s-%s.sql",
 				$backup_conf['tmp_dir'],
 				"$db",
@@ -185,11 +185,11 @@ function backup_mysql()
 			if ($retval == 0) {
 				$chown_cmd = "chown {$backup_conf['luser']}:{$backup_conf['lgroup']} $filename";
 				exec($chown_cmd, $output, $retval);
-				inform("Finished backup of mysql database '$db'");
+				inform("Done");
 			} else {
-				inform("Error $retval:");
+				inform(sprintf("\nError %s: ", $retval));
 				foreach ($output as $line) {
-					inform("$line");
+					inform($line);
 				}
 				unlink($filename);
 				// exit($retval);
