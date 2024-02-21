@@ -457,7 +457,7 @@ function store_rsync()
 		inform(sprintf("  Attempt %d at %s", $attempt + 1, date("H:i:s")));
 		exec($cmd, $output, $retval);
 		if ($retval == 0) {
-			inform("Finished rsync at %s", date("H:i:s"));
+			inform(sprintf("Finished rsync at %s", date("H:i:s")));
 			break;
 		} else {
 			inform(sprintf("Error %d on attempt %d of %d", $retval, $attempt +1, $backup_conf['store_retry'] +1));
