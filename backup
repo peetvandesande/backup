@@ -1,7 +1,7 @@
 #!/usr/bin/php
 <?php
 // Record start time
-inform("Starting $argv[0] at " . timestamp());
+inform(sprintf("Starting %s at %s\n", $argv[0], timestamp("Y-m-d H:i:s")));
 
 require("Archive.class.php");
 // error_reporting(E_ERROR);
@@ -22,7 +22,7 @@ init();
 main();
 housekeeping();
 
-inform("Ending $argv[0] at " . timestamp());
+inform(sprintf("Ending %s at %s\n", $argv[0], timestamp("Y-m-d H:i:s")));
 
 function init()
 {
