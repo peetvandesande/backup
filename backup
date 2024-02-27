@@ -1,7 +1,7 @@
 #!/usr/bin/php
 <?php
 // Record start time
-inform(sprintf("Starting %s at %s\n", $argv[0], timestamp("Y-m-d H:i:s")));
+inform(sprintf("\nStarting %s at %s", $argv[0], timestamp("Y-m-d H:i:s")));
 
 require("Archive.class.php");
 // error_reporting(E_ERROR);
