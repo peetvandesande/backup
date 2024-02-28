@@ -27,7 +27,6 @@ class Archive {
     public function __construct() {
         $this->debug = false;
         $this->metadata = array(
-            'version' => 'v2.0.0-alpha-2',
             'description' => '',
             'date' => '',
             'time_start' => 0,
