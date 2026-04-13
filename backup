@@ -18,6 +18,14 @@ if (is_readable($config_file)) {
 	die ("Can't read configuration file\n");
 }
 
+// Parse command-line arguments
+$store_only = false;
+for ($i = 1; $i < $argc; $i++) {
+	if ($argv[$i] === '--store-only') {
+		$store_only = true;
+	}
+}
+
 init();
 main();
 housekeeping();
@@ -57,19 +65,24 @@ function init()
 
 function main()
 {
-	global $backup_mysql, $backup_conf;
-	package_info();
+	global $backup_mysql, $backup_conf, $store_only;
+	
+	if ($store_only) {
+		inform("Running in store-only mode - skipping backup steps");
+	} else {
+		package_info();
 
-	if (isset($backup_conf['retain'])) {
-		remove_old();
+		if (isset($backup_conf['retain'])) {
+			remove_old();
+		}
+
+		if (count($backup_mysql['databases']) > 0) {
+			mysql_db_size();
+			backup_mysql();
+		}
+
+		backup_data();
 	}
-
-	if (count($backup_mysql['databases']) > 0) {
-		mysql_db_size();
-		backup_mysql();
-	}
-
-	backup_data();
 
 	if ($backup_conf['store_remote']) {
 		store_remote();
